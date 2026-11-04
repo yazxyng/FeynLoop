@@ -1,5 +1,14 @@
-import type { Project, Feedback } from "./types";
-export const sample: Project = {
+import type { Feedback } from "../types";
+import type { SourcePage } from "./models";
+import type { Concept } from "../types";
+export const sample: {
+  id: string;
+  name: string;
+  createdAt: string;
+  pages: SourcePage[];
+  concepts: Concept[];
+  studies: Record<string, never>;
+} = {
   id: "demo-learning",
   name: "학습의 원리와 기억.pdf",
   createdAt: "2026-11-03T09:00:00.000Z",
@@ -48,6 +57,10 @@ export function demoFeedback(
 ): Feedback {
   return {
     understood: [],
+    errors: [],
+    missing: [],
+    change: "데모는 의미 기반 이해 변화를 판정하지 않습니다.",
+    evidence: [],
     improve: [
       "이 데모는 의미 기반 정확도를 판정하지 않습니다. 문서의 정의와 직접 비교해 보세요.",
     ],
@@ -57,6 +70,6 @@ export function demoFeedback(
     question: last
       ? `방금 “${last.slice(0, 65)}”라고 설명했어요. 그 상황에서 ${title}의 원리가 어떻게 작동하는지 한 단계 더 풀어 주실래요?`
       : `“${explanation.slice(0, 60)}”라는 설명을 읽었어요. ${title}을 처음 배우는 사람에게 일상 속 사례 하나로 설명해 주실래요?`,
-    hint: "원문에서 원인과 결과가 연결되는 문장을 찾아보세요. 그 관계를 익숙한 상황에 대입해 보세요.",
+    hint: "방금 떠올린 사례에서 원인과 결과를 나누어 생각해 보세요.",
   };
 }

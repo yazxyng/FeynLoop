@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+import { dirname, join, sep } from "node:path";
 export const MAX_PDF_BYTES = 20 * 1024 * 1024;
 export async function extractPdf(file: File) {
   if (
@@ -9,11 +11,20 @@ export async function extractPdf(file: File) {
   const data = new Uint8Array(await file.arrayBuffer());
   if (new TextDecoder().decode(data.slice(0, 5)) !== "%PDF-")
     throw new Error("올바른 PDF 파일이 아닙니다.");
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  const task = pdfjs.getDocument({ data });
-  const doc = await task.promise;
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const packageDirectory = dirname(
+    createRequire(join(process.cwd(), "package.json")).resolve(
+      "pdfjs-dist/package.json",
+    ),
+  );
+  const task = pdfjs.getDocument({
+    data,
+    standardFontDataUrl: join(packageDirectory, "standard_fonts") + sep,
+    cMapUrl: join(packageDirectory, "cmaps") + sep,
+    cMapPacked: true,
+  });
   try {
+    const doc = await task.promise;
     if (doc.numPages > 150)
       throw new Error("MVP에서는 150페이지 이하의 PDF를 지원합니다.");
     const pages = [];

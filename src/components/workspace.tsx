@@ -17,25 +17,21 @@ import {
   Plus,
   Search,
   Sparkles,
-  Upload,
   X,
   Lightbulb,
   Leaf,
 } from "lucide-react";
 import { Button } from "./ui/button";
-import { sample } from "@/lib/demo";
-import { extractPdf } from "@/lib/pdf";
 import { supabase } from "@/lib/supabase";
-import type { Concept, Feedback, Project, Study } from "@/lib/types";
+import {
+  newStudy,
+  type Concept,
+  type Feedback,
+  type Project,
+  type Study,
+} from "@/lib/types";
+import StudyRoom from "./study-room";
 type View = "dashboard" | "concepts" | "study" | "result";
-const newStudy = (id: string): Study => ({
-  conceptId: id,
-  first: "",
-  final: "",
-  turns: [],
-  phase: "explain",
-  draft: "",
-});
 export default function Workspace() {
   const [projects, setProjects] = useState<Project[]>([]),
     [ready, setReady] = useState(false),
@@ -47,127 +43,115 @@ export default function Workspace() {
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
     [tab, setTab] = useState("editor"),
-    [page, setPage] = useState(1),
-    [hint, setHint] = useState(false),
     [email, setEmail] = useState(""),
     [userId, setUserId] = useState<string | null>(null),
     [aiMode, setAiMode] = useState("demo"),
     [authOpen, setAuthOpen] = useState(false);
-  const uploadRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null),
+    running = useRef(false),
+    generation = useRef(0),
+    accessTokenRef = useRef<string | undefined>(undefined);
   const project = projects.find((p) => p.id === projectId),
     concept = project?.concepts.find((c) => c.id === conceptId),
     study = project?.studies[conceptId] || newStudy(conceptId);
+  async function api(path: string, body?: unknown, token?: string) {
+    const accessToken = token ?? accessTokenRef.current;
+    const isForm = body instanceof FormData;
+    const res = await fetch(path, {
+      method: body === undefined ? "GET" : "POST",
+      cache: "no-store",
+      headers: {
+        ...(body !== undefined && !isForm
+          ? { "Content-Type": "application/json" }
+          : {}),
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      ...(body !== undefined
+        ? { body: isForm ? body : JSON.stringify(body) }
+        : {}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "요청을 처리하지 못했습니다.");
+    return data;
+  }
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => setAiMode(d.ai))
       .catch(() => {});
     let active = true;
-    const load = async (id: string | null) => {
+    const load = async (id: string | null, token?: string) => {
+      const current = ++generation.current;
       setReady(false);
       setView("dashboard");
       setUserId(id);
+      setProjects([]);
       try {
-        if (id && supabase) {
-          const { data, error } = await supabase
-            .from("projects")
-            .select("data")
-            .order("updated_at", { ascending: false });
-          if (error) throw error;
-          if (active) setProjects((data || []).map((r) => r.data as Project));
-        } else {
-          const saved = localStorage.getItem("feynloop-v1");
-          if (active) setProjects(saved ? JSON.parse(saved) : []);
-        }
-      } catch {
-        if (active) {
-          setProjects([]);
-          setError(
-            "기록을 불러오지 못했습니다. 새로고침하여 다시 시도해 주세요.",
-          );
-        }
+        const data = await api("/api/projects", undefined, token || "");
+        if (active && current === generation.current)
+          setProjects(data.projects);
+      } catch (e) {
+        if (active && current === generation.current)
+          setError(e instanceof Error ? e.message : "기록을 읽지 못했습니다.");
       } finally {
-        if (active) setReady(true);
+        if (active && current === generation.current) setReady(true);
       }
     };
+    void load(null);
     if (supabase) {
+      let lastId: string | null = null;
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-        void load(session?.user.id || null);
+        accessTokenRef.current = session?.access_token;
+        const id = session?.user.id || null;
+        if (id === lastId) return;
+        lastId = id;
+        void load(id, session?.access_token);
       });
       return () => {
         active = false;
+        generation.current++;
         data.subscription.unsubscribe();
       };
     }
-    void load(null);
     return () => {
       active = false;
+      generation.current++;
     };
   }, []);
-  useEffect(() => {
-    if (!ready || userId) return;
-    try {
-      localStorage.setItem("feynloop-v1", JSON.stringify(projects));
-    } catch {
-      setError(
-        "브라우저 저장 공간이 부족합니다. 기록을 내보내거나 더 작은 PDF를 사용해 주세요.",
-      );
-    }
-  }, [projects, ready, userId]);
-  async function persist(p: Project, file?: File) {
-    if (!userId || !supabase) return;
-    let path = p.filePath;
-    if (file) {
-      path = `${userId}/${p.id}.pdf`;
-      const { error } = await supabase.storage
-        .from("pdfs")
-        .upload(path, file, { upsert: true, contentType: "application/pdf" });
-      if (error) throw error;
-      p.filePath = path;
-    }
-    const { error } = await supabase
-      .from("projects")
-      .upsert({
-        id: p.id,
-        user_id: userId,
-        data: p,
-        updated_at: new Date().toISOString(),
-      });
-    if (error) throw error;
-  }
-  async function saveProject(p: Project, file?: File) {
-    await persist(p, file);
+  function accept(p: Project) {
     setProjects((prev) =>
       prev.some((v) => v.id === p.id)
         ? prev.map((v) => (v.id === p.id ? p : v))
         : [p, ...prev],
     );
   }
+  async function command(
+    action: string,
+    extra: Record<string, unknown> = {},
+    p = project,
+    cId = conceptId,
+  ) {
+    if (!p) throw new Error("프로젝트를 선택해 주세요.");
+    const current = generation.current;
+    const data = await api(`/api/projects/${p.id}`, {
+      action,
+      conceptId: cId,
+      version: p.version,
+      requestId: crypto.randomUUID(),
+      ...extra,
+    });
+    if (current !== generation.current)
+      throw new Error("계정이 변경되었습니다. 다시 시도해 주세요.");
+    accept(data.project);
+    return data.project as Project;
+  }
   function patchStudy(next: Study) {
     if (!project) return;
-    const p = {
-      ...project,
-      studies: { ...project.studies, [conceptId]: next },
-    };
-    setProjects((prev) => prev.map((v) => (v.id === p.id ? p : v)));
-  }
-  async function api(payload: unknown) {
-    const session = supabase
-      ? (await supabase.auth.getSession()).data.session
-      : null;
-    const res = await fetch("/api/ai", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "요청 실패");
-    return data;
+    accept({ ...project, studies: { ...project.studies, [conceptId]: next } });
   }
   async function run(task: () => Promise<void>) {
+    if (running.current) return;
+    running.current = true;
     setBusy(true);
     setError("");
     setNotice("");
@@ -176,84 +160,61 @@ export default function Workspace() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "작업을 완료하지 못했습니다.");
     } finally {
+      running.current = false;
       setBusy(false);
     }
   }
   function open(p: Project) {
     setProjectId(p.id);
     setView("concepts");
-    setPage(1);
   }
   async function upload(file: File) {
     await run(async () => {
-      const pages = await extractPdf(file);
-      const data = await api({ action: "concepts", pages });
-      const p: Project = {
-        id: crypto.randomUUID(),
-        name: file.name,
-        pages,
-        concepts: data.concepts,
-        studies: {},
-        createdAt: new Date().toISOString(),
-      };
-      await saveProject(p, file);
+      const form = new FormData();
+      form.set("file", file);
+      const { project: p } = await api("/api/projects", form);
+      accept(p);
       open(p);
       setNotice(
-        data.mode === "demo"
-          ? "데모: 문장에서 후보를 만들었습니다. 개념을 검토·수정해 주세요."
-          : "문서 분석을 마쳤습니다. 학습할 개념을 선택해 주세요.",
+        p.mode === "demo"
+          ? "데모 개념 후보입니다. 학습 전에 이름을 확인해 주세요."
+          : "분석을 마쳤습니다. 학습할 개념을 선택해 주세요.",
       );
     });
   }
-  function start(c: Concept) {
-    setConceptId(c.id);
-    setPage(c.pages[0]);
-    setHint(false);
-    setTab("editor");
-    setView(project?.studies[c.id]?.phase === "done" ? "result" : "study");
+  function start(c: Concept, selectedProject = project) {
+    void run(async () => {
+      const prepared =
+        selectedProject && !selectedProject.studies[c.id]
+          ? await command(
+              "editConcept",
+              { title: c.title, description: c.description },
+              selectedProject,
+              c.id,
+            )
+          : selectedProject;
+      const p = await command("start", {}, prepared, c.id);
+      setProjectId(p.id);
+      setConceptId(c.id);
+      setTab("editor");
+      setView(p.studies[c.id].phase === "done" ? "result" : "study");
+    });
+  }
+  async function editConcept(c: Concept) {
+    await command(
+      "editConcept",
+      { title: c.title, description: c.description },
+      project,
+      c.id,
+    );
   }
   async function submit() {
-    if (!project || !concept || !study.draft.trim()) return;
+    if (!study.draft.trim()) return;
     await run(async () => {
-      const isAnswer = study.phase === "questions";
-      const turns = isAnswer
-        ? [
-            ...study.turns,
-            { question: study.feedback?.question || "", answer: study.draft },
-          ]
-        : study.turns;
-      const final = study.phase === "rewrite";
-      const data = await api({
-        action: "feedback",
-        pages: project.pages,
-        concept,
-        explanation: final ? study.draft : study.first || study.draft,
-        turns,
-        final,
-        initialExplanation: study.first || study.draft,
-      });
-      const next: Study = {
-        ...study,
-        first: study.first || study.draft,
-        final: final ? study.draft : study.final,
-        turns,
-        draft: "",
-        feedback: data.feedback,
-        phase: final
-          ? "done"
-          : isAnswer && turns.length >= 3
-            ? "rewrite"
-            : "questions",
-        ...(final ? { result: data.feedback } : {}),
-      };
-      await saveProject({
-        ...project,
-        studies: { ...project.studies, [conceptId]: next },
-      });
-      setHint(false);
-      setTab("chat");
-      if (final) setView("result");
-      else if (next.phase === "rewrite") setTab("editor");
+      const p = await command("submit", { text: study.draft });
+      const s = p.studies[conceptId];
+      setTab(s.phase === "questions" ? "chat" : "editor");
+      if (s.phase === "done") setView("result");
     });
   }
   const completed = projects.reduce(
@@ -338,7 +299,7 @@ export default function Workspace() {
           <div>
             {userId ? "내 계정" : "데모 학습자"}
             <small>
-              {userId ? "클라우드 저장 사용 중" : "이 브라우저에 기록 저장"}
+              {userId ? "클라우드 저장 사용 중" : "서버에 데모 기록 저장"}
             </small>
           </div>
           {userId ? <LogOut size={15} /> : <ChevronRight size={15} />}
@@ -359,7 +320,13 @@ export default function Workspace() {
           <div>
             <span className="mode">
               <i />
-              {aiMode === "demo" ? "DEMO MODE" : "AI CONNECTED"}
+              {(project && view !== "dashboard"
+                ? project.mode
+                : userId
+                  ? aiMode
+                  : "demo") === "demo"
+                ? "DEMO MODE"
+                : "AI CONNECTED"}
             </span>
             <span className="header-avatar">나</span>
           </div>
@@ -426,10 +393,10 @@ export default function Workspace() {
                 <Button
                   onClick={() =>
                     void run(async () => {
-                      const p = structuredClone(sample);
-                      p.id = crypto.randomUUID();
-                      p.createdAt = new Date().toISOString();
-                      await saveProject(p);
+                      const { project: p } = await api("/api/projects", {
+                        sample: true,
+                      });
+                      accept(p);
                       open(p);
                       setNotice(
                         "예제 문서입니다. AI 키가 없으면 질문 흐름을 데모로 체험합니다.",
@@ -504,9 +471,7 @@ export default function Workspace() {
               <button
                 className="resume"
                 onClick={() => {
-                  open(ongoing.p);
-                  setConceptId(ongoing.s.conceptId);
-                  setView("study");
+                  if (ongoing.c) start(ongoing.c, ongoing.p);
                 }}
               >
                 <span className="resume-icon">
@@ -568,7 +533,7 @@ export default function Workspace() {
                         </div>
                         <h3>{p.name.replace(/\.pdf$/i, "")}</h3>
                         <p>
-                          {p.pages.length}페이지 <span>·</span> 핵심 개념{" "}
+                          {p.pageCount}페이지 <span>·</span> 핵심 개념{" "}
                           {p.concepts.length}개
                         </p>
                         <div className="progress-label">
@@ -659,8 +624,8 @@ export default function Workspace() {
                         : "설명으로 완성한 한 번의 루프"}
                   </h1>
                   <p>
-                    {project.name} · {project.pages.length}페이지{" "}
-                    {aiMode === "demo"
+                    {project.name} · {project.pageCount}페이지{" "}
+                    {project.mode === "demo"
                       ? "· 데모 질문 / 의미 기반 평가 없음"
                       : ""}
                   </p>
@@ -695,6 +660,7 @@ export default function Workspace() {
                         <div className="concept-details">
                           <input
                             aria-label={`개념 ${i + 1} 이름`}
+                            disabled={busy || Boolean(project.studies[c.id])}
                             maxLength={150}
                             value={c.title}
                             onChange={(e) =>
@@ -713,16 +679,10 @@ export default function Workspace() {
                                 ),
                               )
                             }
-                            onBlur={() =>
-                              void run(async () => {
-                                if (!c.title.trim())
-                                  throw new Error("개념 이름을 입력해 주세요.");
-                                await persist(project);
-                              })
-                            }
                           />
                           <textarea
                             aria-label={`개념 ${i + 1} 설명`}
+                            disabled={busy || Boolean(project.studies[c.id])}
                             maxLength={600}
                             value={c.description}
                             onChange={(e) =>
@@ -744,9 +704,17 @@ export default function Workspace() {
                                 ),
                               )
                             }
-                            onBlur={() => void run(() => persist(project))}
                           />
                           <div>
+                            {!project.studies[c.id] && (
+                              <button
+                                className="hint-button"
+                                disabled={busy || !c.title.trim()}
+                                onClick={() => void run(() => editConcept(c))}
+                              >
+                                변경 저장
+                              </button>
+                            )}
                             <span className="tag">중요도 {c.importance}</span>
                             <span className="muted">
                               근거 p.{c.pages.join(", ")}
@@ -776,234 +744,31 @@ export default function Workspace() {
                   </div>
                 </>
               ) : view === "study" && concept ? (
-                <>
-                  <div className="steps">
-                    {["자유롭게 설명", "AI와 질문·답변", "처음부터 재설명"].map(
-                      (label, i) => (
-                        <span
-                          className={
-                            (study.phase === "explain"
-                              ? 0
-                              : study.phase === "questions"
-                                ? 1
-                                : 2) === i
-                              ? "current"
-                              : ""
-                          }
-                          key={label}
-                        >
-                          <b>{i + 1}</b>
-                          {label}
-                        </span>
-                      ),
-                    )}
-                  </div>
-                  <div className="mobile-tabs">
-                    {[
-                      ["source", "원문"],
-                      ["editor", "나의 설명"],
-                      ["chat", "AI 학생"],
-                    ].map(([key, label]) => (
-                      <button
-                        className={tab === key ? "selected" : ""}
-                        key={key}
-                        onClick={() => setTab(key)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="study-grid">
-                    <section
-                      className={`study-panel ${tab === "source" ? "mobile-visible" : ""}`}
-                    >
-                      <div className="panel-heading">
-                        <FileText size={17} />
-                        <strong>문서 원문</strong>
-                        <span>텍스트 보기</span>
-                      </div>
-                      <div className="page-controls">
-                        <button
-                          aria-label="이전 페이지"
-                          disabled={page <= 1}
-                          onClick={() => setPage(page - 1)}
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-                        <span>
-                          {page} / {project.pages.length}
-                        </span>
-                        <button
-                          aria-label="다음 페이지"
-                          disabled={page >= project.pages.length}
-                          onClick={() => setPage(page + 1)}
-                        >
-                          <ChevronRight size={16} />
-                        </button>
-                      </div>
-                      <div className="source-text">
-                        {project.pages.find((p) => p.number === page)?.text}
-                      </div>
-                      <div className="source-footer">
-                        관련 페이지{" "}
-                        {concept.pages.map((p) => (
-                          <button key={p} onClick={() => setPage(p)}>
-                            p.{p}
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                    <section
-                      className={`study-panel editor-panel ${tab === "editor" ? "mobile-visible" : ""}`}
-                    >
-                      <div className="panel-heading">
-                        <BookOpen size={17} />
-                        <strong>
-                          {study.phase === "questions"
-                            ? "질문에 답하기"
-                            : study.phase === "rewrite"
-                              ? "다시 설명하기"
-                              : "나의 첫 설명"}
-                        </strong>
-                        <span>
-                          {userId ? "단계 제출 시 저장" : "자동 임시 저장"}
-                        </span>
-                      </div>
-                      <div className="editor-intro">
-                        <span className="tag">{concept.title}</span>
-                        <h3>
-                          {study.phase === "questions"
-                            ? "생각을 한 단계 더 풀어볼까요?"
-                            : study.phase === "rewrite"
-                              ? "이제 처음부터 설명해 보세요."
-                              : "처음 배우는 친구에게 설명하듯."}
-                        </h3>
-                        <p>
-                          {study.phase === "questions"
-                            ? study.feedback?.question
-                            : "정의, 작동 원리, 나만의 예시를 편하게 적어보세요. 완벽하지 않아도 괜찮아요."}
-                        </p>
-                      </div>
-                      <textarea
-                        className="explanation"
-                        aria-label="설명 작성"
-                        maxLength={15000}
-                        placeholder="제가 이해한 이 개념은…"
-                        value={study.draft}
-                        onChange={(e) =>
-                          patchStudy({ ...study, draft: e.target.value })
-                        }
-                      />
-                      <div className="editor-footer">
-                        <span>
-                          {study.draft.length.toLocaleString()} / 15,000자
-                        </span>
-                        <Button
-                          disabled={busy || !study.draft.trim()}
-                          onClick={() => void submit()}
-                        >
-                          {busy ? (
-                            <Loader2 className="spin" size={15} />
-                          ) : (
-                            <ArrowRight size={15} />
-                          )}{" "}
-                          {study.phase === "rewrite"
-                            ? "학습 결과 확인"
-                            : study.phase === "questions"
-                              ? "답변 보내기"
-                              : "설명 마치기"}
-                        </Button>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(async () => {
-                            await persist(project);
-                            setNotice(
-                              userId
-                                ? "클라우드에 저장했습니다."
-                                : "이 브라우저에 저장했습니다.",
-                            );
-                          })
-                        }
-                      >
-                        저장하고 잠시 쉬기
-                      </Button>
-                    </section>
-                    <section
-                      className={`study-panel chat-panel ${tab === "chat" ? "mobile-visible" : ""}`}
-                    >
-                      <div className="panel-heading">
-                        <span className="ai-icon">✳</span>
-                        <strong>호기심 많은 AI 학생</strong>
-                        <span>{study.turns.length} / 3 질문</span>
-                      </div>
-                      <div className="chat-body">
-                        <div className="chat-message">
-                          <strong>✳ 루프</strong>
-                          <p>
-                            안녕하세요! 저는 이 개념이 처음이에요. 설명해 주시면
-                            궁금한 점을 하나씩 물어볼게요.
-                          </p>
-                        </div>
-                        {study.first && (
-                          <div className="chat-answer">
-                            <small>나의 첫 설명</small>
-                            <p>{study.first}</p>
-                          </div>
-                        )}
-                        {study.turns.map((t, i) => (
-                          <div key={i}>
-                            <div className="chat-message">
-                              <strong>질문 {i + 1}</strong>
-                              <p>{t.question}</p>
-                            </div>
-                            <div className="chat-answer">
-                              <p>{t.answer}</p>
-                            </div>
-                          </div>
-                        ))}
-                        {study.feedback && (
-                          <>
-                            <FeedbackView feedback={study.feedback} compact />
-                            {study.phase === "questions" && (
-                              <div className="chat-message">
-                                <strong>✳ 질문 {study.turns.length + 1}</strong>
-                                <p>{study.feedback.question}</p>
-                                <button
-                                  className="hint-button"
-                                  onClick={() => setHint(!hint)}
-                                >
-                                  <Lightbulb size={14} />
-                                  힌트 {hint ? "접기" : "보기"}
-                                </button>
-                                {hint && (
-                                  <p className="hint">{study.feedback.hint}</p>
-                                )}
-                              </div>
-                            )}
-                            {study.phase === "rewrite" && (
-                              <div className="chat-message">
-                                <strong>이제 나의 언어로 한 번 더.</strong>
-                                <p>
-                                  세 번의 질문을 마쳤어요. 원문을 확인하고
-                                  에디터에서 처음부터 다시 설명해 주세요.
-                                </p>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      <small className="chat-disclaimer">
-                        {aiMode === "demo"
-                          ? "데모 질문입니다. 실제 이해도를 평가하지 않습니다."
-                          : "AI 평가에는 오류가 있을 수 있어요. 원문 근거를 확인하세요."}
-                      </small>
-                    </section>
-                  </div>
-                </>
+                <StudyRoom
+                  project={project}
+                  concept={concept}
+                  study={study}
+                  busy={busy}
+                  tab={tab}
+                  setTab={setTab}
+                  onDraft={(text) => patchStudy({ ...study, draft: text })}
+                  onSubmit={() => void submit()}
+                  onAction={(action, extra) =>
+                    void run(async () => {
+                      await command(action, {
+                        ...extra,
+                        ...(action === "hint" ? { text: study.draft } : {}),
+                      });
+                      if (action === "rewrite") setTab("editor");
+                    })
+                  }
+                  onSave={() =>
+                    void run(async () => {
+                      await command("draft", { text: study.draft });
+                      setNotice("설명을 서버에 저장했습니다.");
+                    })
+                  }
+                />
               ) : view === "result" && concept ? (
                 <>
                   <div className="result-banner">
@@ -1033,11 +798,30 @@ export default function Workspace() {
                       <p>{study.final}</p>
                     </section>
                   </div>
-                  {study.result && <FeedbackView feedback={study.result} />}
+                  {study.initialFeedback && (
+                    <>
+                      <h3>첫 설명의 평가</h3>
+                      <FeedbackView feedback={study.initialFeedback} />
+                    </>
+                  )}
+                  {study.result && (
+                    <>
+                      <h3>마지막 설명의 평가</h3>
+                      <FeedbackView feedback={study.result} />
+                      <div className="info-box">
+                        <p>{study.result.change}</p>
+                      </div>
+                    </>
+                  )}
+                  <p className="muted">
+                    이번 시도 {study.attempt}회차 · 근거 열람{" "}
+                    {study.evidenceViews.length}페이지 · 사용한 힌트{" "}
+                    {study.turns.reduce((n, t) => n + t.hints.length, 0)}개
+                  </p>
                   <div className="info-box">
                     <Lightbulb size={18} />
                     <p>
-                      {aiMode === "demo"
+                      {project.mode === "demo"
                         ? "데모에서는 정확도나 이해 향상을 점수로 판정하지 않습니다. 결과는 설명 기록이며 의미 기반 평가 결과가 아닙니다."
                         : "미확인은 아직 설명에서 확인하지 못한 내용입니다. 이해하지 못했다는 뜻은 아닙니다."}
                     </p>
@@ -1046,13 +830,8 @@ export default function Workspace() {
                     variant="outline"
                     onClick={() =>
                       void run(async () => {
-                        await saveProject({
-                          ...project,
-                          studies: {
-                            ...project.studies,
-                            [conceptId]: newStudy(conceptId),
-                          },
-                        });
+                        await command("restart");
+                        setTab("editor");
                         setView("study");
                       })
                     }
@@ -1090,8 +869,8 @@ export default function Workspace() {
             <h2>배움을 안전하게 이어가세요</h2>
             <p>
               {supabase
-                ? "이메일 로그인 후 프로젝트와 PDF를 내 계정에 저장합니다. 데모 기록은 브라우저에 따로 남습니다."
-                : "Supabase 환경변수가 설정되지 않았습니다. 현재는 로그인 없이 브라우저 저장 방식으로 사용할 수 있습니다."}
+                ? "이메일 로그인 후 프로젝트와 PDF를 내 계정에 저장합니다. 데모 기록은 별도로 유지됩니다."
+                : "Supabase 환경변수가 설정되지 않았습니다. 현재는 로그인 없이 서버의 데모 저장 방식으로 사용할 수 있습니다."}
             </p>
             {supabase && (
               <form
@@ -1162,6 +941,8 @@ function FeedbackView({
     <div className={compact ? "feedback compact" : "feedback"}>
       {[
         ["확인된 이해", feedback.understood, "green"],
+        ["개념 오류", feedback.errors, "amber"],
+        ["설명에서 빠진 요소 · 이해 여부 미확인", feedback.missing, "gray"],
         ["보완할 요소", feedback.improve, "amber"],
         ["아직 미확인", feedback.unverified, "gray"],
       ].map(([title, items, color]) => (
@@ -1171,7 +952,19 @@ function FeedbackView({
           </h3>
           <ul>
             {(items as string[]).length ? (
-              (items as string[]).map((item, i) => <li key={i}>{item}</li>)
+              (items as string[]).map((item, i) => (
+                <li key={i}>
+                  {item}
+                  {feedback.evidence
+                    .filter((e) => e.claim === item)
+                    .map((e, j) => (
+                      <details key={j}>
+                        <summary>근거 p.{e.page}</summary>
+                        <blockquote>{e.quote}</blockquote>
+                      </details>
+                    ))}
+                </li>
+              ))
             ) : (
               <li>확인된 항목이 없습니다.</li>
             )}

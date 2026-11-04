@@ -5,3 +5,6 @@ node_modules
 *.tsbuildinfo
 
 public/pdf.worker.min.mjs
+
+# 서버 전용 데모 문서와 학습 기록
+.feynloop-data/
