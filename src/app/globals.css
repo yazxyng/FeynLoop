@@ -1696,3 +1696,62 @@ h1 > span {
     font-size: 9px;
   }
 }
+
+/* 원문 없는 회상 학습 */
+.recall-grid {
+  grid-template-columns: 1.25fr 1fr;
+}
+.review-panel {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 30px;
+  color: #66815e;
+}
+.review-panel h2 {
+  font-size: 20px;
+  margin: 15px 0;
+  color: var(--foreground);
+}
+.review-panel > p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #87917f;
+}
+.review-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 22px 0;
+}
+.evidence-excerpt {
+  margin: 18px 0;
+  padding: 20px;
+  border-left: 3px solid #a6bea0;
+  background: #f5f8f2;
+}
+.evidence-excerpt small {
+  color: #8c9d80;
+}
+.evidence-excerpt p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.9;
+  margin-top: 12px;
+  font-size: 13px;
+}
+@media (max-width: 900px) {
+  .recall-grid {
+    display: block;
+  }
+}
+@media (max-width: 650px) {
+  .steps {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .review-panel {
+    padding: 20px;
+  }
+}
