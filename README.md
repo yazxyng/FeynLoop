@@ -74,13 +74,28 @@ npm start
 | NEXT_PUBLIC_SUPABASE_URL | Supabase 프로젝트 URL |
 | NEXT_PUBLIC_SUPABASE_ANON_KEY | 브라우저용 Publishable key 또는 anon 키 |
 | SUPABASE_SECRET_KEY | 서버 전용 Supabase Secret key 또는 service_role 키 |
-| LLM_API_KEY | 서버 전용 LLM API 키 |
-| LLM_BASE_URL | Chat Completions 호환 주소. 기본 https://api.openai.com/v1 |
-| LLM_MODEL | 모델 이름. 기본 gpt-4.1-mini |
+| GEMINI_API_KEY | Google AI Studio에서 발급한 서버 전용 Gemini API 키 |
+| GEMINI_MODEL | Gemini 모델 이름. 기본 gemini-3.1-flash-lite |
 | ALLOW_DEMO | false이면 비로그인 API 사용 차단. 기본 허용 |
 | FEYNLOOP_DATA_DIR | 데모 기록을 보관할 영속 디렉터리. 기본 .feynloop-data |
 
-실제 AI는 로그인한 사용자와 LLM 키가 모두 있을 때만 사용합니다. 세션을 만들 때의 AI/데모 모드를 저장하며, 실행 도중 실제 AI 설정이 사라지면 데모 평가로 바꾸지 않고 오류를 안내합니다. PDF 텍스트와 설명은 선택한 LLM 제공자에게 전송됩니다.
+실제 AI는 로그인한 사용자와 Gemini 키가 모두 있을 때만 사용합니다. 세션을 만들 때의 AI/데모 모드를 저장하며, 실행 도중 실제 AI 설정이 사라지면 데모 평가로 바꾸지 않고 오류를 안내합니다. PDF 텍스트와 설명은 Google Gemini API로 전송됩니다.
+
+### Gemini 연결 방법
+
+1. [Google AI Studio](https://aistudio.google.com/apikey)에서 API 키를 만듭니다.
+2. `.env.local`에 다음 값을 넣고 개발 서버를 재시작합니다. `.env.example`에는 실제 키를 넣지 마세요.
+
+```env
+GEMINI_API_KEY=발급받은_키
+GEMINI_MODEL=gemini-3.1-flash-lite
+```
+
+기존 `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` 설정은 더 이상 읽지 않으며 OpenAI로 요청하지 않습니다. Gemini 키가 없으면 데모를 사용합니다. 이미 데모로 만든 프로젝트는 모드가 유지되므로 키 설정 및 로그인 후 새 프로젝트를 만들어 실제 AI를 확인하세요.
+
+Google의 기본 `generateContent` REST API를 사용하고 시스템 지시·문서 입력을 분리합니다. JSON Schema를 요청에 포함하고 응답은 Zod로 다시 검증합니다. 생각 과정으로 표시된 응답은 제외하며, 안전 제한·빈 응답·길이 제한·잘못된 JSON·연결 시간 초과는 학습 상태를 변경하지 않고 오류로 안내합니다. 429는 사용 한도 안내로 반환하며 자동 재시도·다른 모델로의 자동 전환은 하지 않습니다.
+
+기본 모델의 무료 등급과 데이터 사용 정책은 [공식 요금표](https://ai.google.dev/gemini-api/docs/pricing)에서 확인할 수 있습니다. 계정·모델별 한도는 AI Studio에서 확인해야 합니다. 앱 설정만으로 Google의 결제 등급을 강제할 수 없으므로 무료 사용을 원하면 API 프로젝트를 Free 등급으로 유지하세요. 무료 등급에 전송한 PDF·설명은 제품 개선에 사용될 수 있습니다. 개인정보가 없는 공개 자료로 먼저 테스트하세요.
 
 AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이해 여부 미확인), 미확인을 구분합니다. 문서 기반 판단에 페이지·인용문을 요구하고 인용문이 실제 원문에 존재하는지 검사합니다. 인용 일치가 의미적 평가의 정확도를 보장하지는 않습니다. 첫 설명과 최종 설명에 동일한 평가 규칙을 적용하고, 결과에는 변화와 근거·힌트 사용 여부를 함께 표시합니다.
 
@@ -133,4 +148,4 @@ AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이�
 
 스캔 PDF OCR, 음성, 복습 알림, 지식 그래프는 제외합니다. 문서 분석은 현재 동기 요청이며 백그라운드 작업·자동 재시도는 포함하지 않습니다. 장문 문서는 모델 컨텍스트 한도에 따라 실패할 수 있습니다. 공개 운영 전 사용자별 사용량·비용 한도, 분산 속도 제한, 문서·기록 삭제 및 보존 정책을 추가해야 합니다. 여러 서버에서 동시에 같은 AI 요청이 실행되면 버전 검사로 중복 저장은 막지만 중복 호출 비용까지 보장하지는 않습니다. Storage 정리 실패에 대비한 고아 파일 정리도 필요합니다.
 
-실제 Supabase·LLM 연결은 별도 인증 정보와 환경에서 검증해야 합니다. 이 작업은 로컬 구현이며 외부 배포는 하지 않습니다.
+실제 Supabase·Gemini 연결은 별도 인증 정보와 환경에서 검증해야 합니다. 이 작업은 로컬 구현이며 외부 배포는 하지 않습니다.

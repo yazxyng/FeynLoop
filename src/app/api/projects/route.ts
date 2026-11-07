@@ -9,6 +9,7 @@ import {
 import { listProjects, createProject } from "@/lib/server/store";
 import { sample } from "@/lib/server/demo";
 import { present } from "@/lib/server/learning";
+import { geminiConfigured } from "@/lib/server/gemini";
 import { extractConcepts } from "@/lib/server/learning-ai";
 import { extractPdf, MAX_PDF_BYTES } from "@/lib/pdf";
 import { ApiError } from "@/lib/server/errors";
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
           e instanceof Error ? e.message : "PDF를 분석하지 못했습니다.",
         );
       }
-      const live = Boolean(process.env.LLM_API_KEY && id.userId);
+      const live = Boolean(geminiConfigured() && id.userId);
       concepts = await extractConcepts(pages, live);
       const record: StoredProject = {
         owner: id.owner,
@@ -116,7 +117,7 @@ export async function POST(req: Request) {
         concepts,
         studies: {},
         version: 0,
-        mode: Boolean(process.env.LLM_API_KEY && id.userId) ? "live" : "demo",
+        mode: Boolean(geminiConfigured() && id.userId) ? "live" : "demo",
         receipts: [],
       },
     };
