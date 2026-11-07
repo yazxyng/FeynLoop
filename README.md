@@ -13,7 +13,17 @@ cp .env.example .env.local
 npm run dev
 ```
 
-[로컬 앱](http://localhost:3000)을 엽니다. 비로그인 상태에서 예제 문서와 PDF 업로드로 데모를 사용할 수 있습니다.
+[로컬 앱](http://localhost:3000)을 엽니다. 기본 선택은 데모이며 비로그인 상태에서 예제 문서와 PDF 업로드로 학습 흐름을 체험할 수 있습니다.
+
+### 실제 Gemini 학습 시작
+
+1. 대시보드의 설정 상태에서 Gemini·계정 저장 설정이 준비됐는지 확인합니다. 이 표시는 환경변수 존재 여부이며 실제 API 연결 성공을 의미하지 않습니다.
+2. **실제 Gemini 학습**을 선택하고 이메일로 로그인합니다.
+3. **새 PDF 업로드** 또는 **Gemini로 예제 분석하기**를 누릅니다. 이때 문서 분석 요청이 발생합니다.
+4. 개념을 선택해 원문 없이 설명합니다. 설명·답변 제출 시 실제 Gemini 평가와 질문 생성 요청이 발생합니다.
+5. 질문을 마치면 필요한 근거만 확인한 뒤 재설명하고 결과를 저장합니다.
+
+페이지 열기, 설정 표시, 학습 방식 선택, 로그인 창 열기는 Gemini 요청을 발생시키지 않습니다. 데모를 선택하면 키와 로그인이 있어도 실제 AI를 호출하지 않습니다. 기존 데모 프로젝트의 모드는 바뀌지 않으므로 실제 모드로 새 프로젝트를 생성해야 합니다.
 
 ```sh
 npm run typecheck
@@ -74,13 +84,28 @@ npm start
 | NEXT_PUBLIC_SUPABASE_URL | Supabase 프로젝트 URL |
 | NEXT_PUBLIC_SUPABASE_ANON_KEY | 브라우저용 Publishable key 또는 anon 키 |
 | SUPABASE_SECRET_KEY | 서버 전용 Supabase Secret key 또는 service_role 키 |
-| LLM_API_KEY | 서버 전용 LLM API 키 |
-| LLM_BASE_URL | Chat Completions 호환 주소. 기본 https://api.openai.com/v1 |
-| LLM_MODEL | 모델 이름. 기본 gpt-4.1-mini |
+| GEMINI_API_KEY | Google AI Studio에서 발급한 서버 전용 Gemini API 키 |
+| GEMINI_MODEL | Gemini 모델 이름. 기본 gemini-3.1-flash-lite |
 | ALLOW_DEMO | false이면 비로그인 API 사용 차단. 기본 허용 |
 | FEYNLOOP_DATA_DIR | 데모 기록을 보관할 영속 디렉터리. 기본 .feynloop-data |
 
-실제 AI는 로그인한 사용자와 LLM 키가 모두 있을 때만 사용합니다. 세션을 만들 때의 AI/데모 모드를 저장하며, 실행 도중 실제 AI 설정이 사라지면 데모 평가로 바꾸지 않고 오류를 안내합니다. PDF 텍스트와 설명은 선택한 LLM 제공자에게 전송됩니다.
+실제 AI는 사용자가 `live` 방식을 명시적으로 선택하고 로그인과 Gemini 키가 모두 준비됐을 때만 사용합니다. 설정이 빠지면 오류로 안내하며 데모로 자동 전환하지 않습니다. 세션을 만들 때의 AI/데모 모드를 저장하며, 실행 도중 실제 AI 설정이 사라지면 데모 평가로 바꾸지 않고 오류를 안내합니다. PDF 텍스트와 설명은 Google Gemini API로 전송됩니다.
+
+### Gemini 연결 방법
+
+1. [Google AI Studio](https://aistudio.google.com/apikey)에서 API 키를 만듭니다.
+2. `.env.local`에 다음 값을 넣고 개발 서버를 재시작합니다. `.env.example`에는 실제 키를 넣지 마세요.
+
+```env
+GEMINI_API_KEY=발급받은_키
+GEMINI_MODEL=gemini-3.1-flash-lite
+```
+
+기존 `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` 설정은 더 이상 읽지 않으며 OpenAI로 요청하지 않습니다. Gemini 키가 없으면 데모를 사용합니다. 이미 데모로 만든 프로젝트는 모드가 유지되므로 키 설정 및 로그인 후 새 프로젝트를 만들어 실제 AI를 확인하세요.
+
+Google의 기본 `generateContent` REST API를 사용하고 시스템 지시·문서 입력을 분리합니다. JSON Schema를 요청에 포함하고 응답은 Zod로 다시 검증합니다. 생각 과정으로 표시된 응답은 제외하며, 안전 제한·빈 응답·길이 제한·잘못된 JSON·연결 시간 초과는 학습 상태를 변경하지 않고 오류로 안내합니다. 429는 사용 한도 안내로 반환하며 자동 재시도·다른 모델로의 자동 전환은 하지 않습니다.
+
+기본 모델의 무료 등급과 데이터 사용 정책은 [공식 요금표](https://ai.google.dev/gemini-api/docs/pricing)에서 확인할 수 있습니다. 계정·모델별 한도는 AI Studio에서 확인해야 합니다. 앱 설정만으로 Google의 결제 등급을 강제할 수 없으므로 무료 사용을 원하면 API 프로젝트를 Free 등급으로 유지하세요. 무료 등급에 전송한 PDF·설명은 제품 개선에 사용될 수 있습니다. 개인정보가 없는 공개 자료로 먼저 테스트하세요.
 
 AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이해 여부 미확인), 미확인을 구분합니다. 문서 기반 판단에 페이지·인용문을 요구하고 인용문이 실제 원문에 존재하는지 검사합니다. 인용 일치가 의미적 평가의 정확도를 보장하지는 않습니다. 첫 설명과 최종 설명에 동일한 평가 규칙을 적용하고, 결과에는 변화와 근거·힌트 사용 여부를 함께 표시합니다.
 
@@ -89,7 +114,7 @@ AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이�
 | 경로 | 동작 |
 | --- | --- |
 | GET /api/projects | 본문 없는 프로젝트·학습 기록 목록 |
-| POST /api/projects | multipart PDF 업로드 또는 {"sample":true} 예제 생성 |
+| POST /api/projects | multipart의 file·mode 필드로 PDF 업로드 또는 {"sample":true,"mode":"demo" 또는 "live"} 예제 생성. mode 생략 시 demo |
 | GET /api/projects/:id | 프로젝트 복원. conceptId 쿼리로 선택한 완료 세션의 결과 또는 검토 단계의 이미 요청한 근거 확인 |
 | POST /api/projects/:id | start / draft / submit / hint / evidence / rewrite / restart / editConcept 명령 |
 
@@ -133,4 +158,4 @@ AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이�
 
 스캔 PDF OCR, 음성, 복습 알림, 지식 그래프는 제외합니다. 문서 분석은 현재 동기 요청이며 백그라운드 작업·자동 재시도는 포함하지 않습니다. 장문 문서는 모델 컨텍스트 한도에 따라 실패할 수 있습니다. 공개 운영 전 사용자별 사용량·비용 한도, 분산 속도 제한, 문서·기록 삭제 및 보존 정책을 추가해야 합니다. 여러 서버에서 동시에 같은 AI 요청이 실행되면 버전 검사로 중복 저장은 막지만 중복 호출 비용까지 보장하지는 않습니다. Storage 정리 실패에 대비한 고아 파일 정리도 필요합니다.
 
-실제 Supabase·LLM 연결은 별도 인증 정보와 환경에서 검증해야 합니다. 이 작업은 로컬 구현이며 외부 배포는 하지 않습니다.
+실제 Supabase·Gemini 연결은 별도 인증 정보와 환경에서 검증해야 합니다. 이 작업은 로컬 구현이며 외부 배포는 하지 않습니다.
