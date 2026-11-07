@@ -9,7 +9,7 @@ import {
 import { listProjects, createProject } from "@/lib/server/store";
 import { sample } from "@/lib/server/demo";
 import { present } from "@/lib/server/learning";
-import { geminiConfigured } from "@/lib/server/gemini";
+import { projectMode } from "@/lib/server/project-mode";
 import { extractConcepts } from "@/lib/server/learning-ai";
 import { extractPdf, MAX_PDF_BYTES } from "@/lib/pdf";
 import { ApiError } from "@/lib/server/errors";
@@ -31,16 +31,25 @@ export async function POST(req: Request) {
     guardOrigin(req);
     const id = await identity(req);
     let name: string, pages: SourcePage[], concepts;
+    let mode: "demo" | "live" = "demo";
     const example = req.headers
       .get("content-type")
       ?.includes("application/json");
     if (example) {
-      z.object({ sample: z.literal(true) })
+      const body = z
+        .object({
+          sample: z.literal(true),
+          mode: z.enum(["demo", "live"]).default("demo"),
+        })
         .strict()
         .parse(await readJson(req, 100));
+      mode = projectMode(id, body.mode);
       name = sample.name;
       pages = structuredClone(sample.pages);
-      concepts = structuredClone(sample.concepts);
+      concepts =
+        mode === "live"
+          ? await extractConcepts(pages, true)
+          : structuredClone(sample.concepts);
     } else {
       if (!req.headers.get("content-type")?.startsWith("multipart/form-data;"))
         throw new ApiError(415, "PDF 파일 업로드 형식이 올바르지 않습니다.");
@@ -73,6 +82,10 @@ export async function POST(req: Request) {
         headers: { "Content-Type": req.headers.get("content-type") || "" },
         body: bytes,
       }).formData();
+      mode = projectMode(
+        id,
+        z.enum(["demo", "live"]).parse(form.get("mode") || "demo"),
+      );
       const uploaded = form.get("file");
       if (!(uploaded instanceof File))
         throw new ApiError(400, "PDF 파일이 필요합니다.");
@@ -86,7 +99,7 @@ export async function POST(req: Request) {
           e instanceof Error ? e.message : "PDF를 분석하지 못했습니다.",
         );
       }
-      const live = Boolean(geminiConfigured() && id.userId);
+      const live = mode === "live";
       concepts = await extractConcepts(pages, live);
       const record: StoredProject = {
         owner: id.owner,
@@ -117,7 +130,7 @@ export async function POST(req: Request) {
         concepts,
         studies: {},
         version: 0,
-        mode: Boolean(geminiConfigured() && id.userId) ? "live" : "demo",
+        mode,
         receipts: [],
       },
     };

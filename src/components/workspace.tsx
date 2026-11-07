@@ -25,12 +25,16 @@ import { Button } from "./ui/button";
 import { supabase } from "@/lib/supabase";
 import {
   newStudy,
+  appConfigurationSchema,
+  type AppConfiguration,
+  type LearningMode,
   type Concept,
   type Feedback,
   type Project,
   type Study,
 } from "@/lib/types";
 import StudyRoom from "./study-room";
+import LearningModeChoice from "./learning-mode";
 type View = "dashboard" | "concepts" | "study" | "result";
 export default function Workspace() {
   const [projects, setProjects] = useState<Project[]>([]),
@@ -45,12 +49,26 @@ export default function Workspace() {
     [tab, setTab] = useState("editor"),
     [email, setEmail] = useState(""),
     [userId, setUserId] = useState<string | null>(null),
-    [aiMode, setAiMode] = useState("demo"),
+    [configuration, setConfiguration] = useState<AppConfiguration | null>(null),
+    [learningMode, setLearningMode] = useState<LearningMode>("demo"),
+    [operation, setOperation] = useState(
+      "처리 중입니다. 잠시만 기다려 주세요.",
+    ),
     [authOpen, setAuthOpen] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null),
     running = useRef(false),
     generation = useRef(0),
     accessTokenRef = useRef<string | undefined>(undefined);
+  const canStart =
+    !busy &&
+    ready &&
+    (learningMode === "demo"
+      ? Boolean(!configuration || configuration.demoAllowed || userId)
+      : Boolean(
+          userId &&
+          configuration &&
+          Object.values(configuration.readiness).every(Boolean),
+        ));
   const project = projects.find((p) => p.id === projectId),
     concept = project?.concepts.find((c) => c.id === conceptId),
     study = project?.studies[conceptId] || newStudy(conceptId);
@@ -77,7 +95,7 @@ export default function Workspace() {
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.json())
-      .then((d) => setAiMode(d.ai))
+      .then((d) => setConfiguration(appConfigurationSchema.parse(d)))
       .catch(() => {});
     let active = true;
     const load = async (id: string | null, token?: string) => {
@@ -149,9 +167,13 @@ export default function Workspace() {
     if (!project) return;
     accept({ ...project, studies: { ...project.studies, [conceptId]: next } });
   }
-  async function run(task: () => Promise<void>) {
+  async function run(
+    task: () => Promise<void>,
+    label = "처리 중입니다. 잠시만 기다려 주세요.",
+  ) {
     if (running.current) return;
     running.current = true;
+    setOperation(label);
     setBusy(true);
     setError("");
     setNotice("");
@@ -169,18 +191,32 @@ export default function Workspace() {
     setView("concepts");
   }
   async function upload(file: File) {
-    await run(async () => {
-      const form = new FormData();
-      form.set("file", file);
-      const { project: p } = await api("/api/projects", form);
-      accept(p);
-      open(p);
-      setNotice(
-        p.mode === "demo"
-          ? "데모 개념 후보입니다. 학습 전에 이름을 확인해 주세요."
-          : "분석을 마쳤습니다. 학습할 개념을 선택해 주세요.",
-      );
-    });
+    await run(
+      async () => {
+        const form = new FormData();
+        if (!canStart)
+          throw new Error("선택한 학습 방식의 설정과 로그인을 확인해 주세요.");
+        if (
+          !file.name.toLowerCase().endsWith(".pdf") ||
+          file.size === 0 ||
+          file.size > 20 * 1024 * 1024
+        )
+          throw new Error("20MB 이하의 PDF 파일을 선택해 주세요.");
+        form.set("file", file);
+        form.set("mode", learningMode);
+        const { project: p } = await api("/api/projects", form);
+        accept(p);
+        open(p);
+        setNotice(
+          p.mode === "demo"
+            ? "데모 개념 후보입니다. 학습 전에 이름을 확인해 주세요."
+            : "분석을 마쳤습니다. 학습할 개념을 선택해 주세요.",
+        );
+      },
+      learningMode === "live"
+        ? "Gemini가 PDF에서 학습 개념을 분석하고 있어요."
+        : "PDF를 읽고 데모 학습을 준비하고 있어요.",
+    );
   }
   function start(c: Concept, selectedProject = project) {
     void run(async () => {
@@ -322,11 +358,9 @@ export default function Workspace() {
               <i />
               {(project && view !== "dashboard"
                 ? project.mode
-                : userId
-                  ? aiMode
-                  : "demo") === "demo"
+                : learningMode) === "demo"
                 ? "DEMO MODE"
-                : "AI CONNECTED"}
+                : "GEMINI MODE"}
             </span>
             <span className="header-avatar">나</span>
           </div>
@@ -369,12 +403,23 @@ export default function Workspace() {
                 <p>오늘의 작은 설명이 내일의 단단한 이해가 됩니다.</p>
               </div>
               <Button
-                disabled={busy || !ready}
+                disabled={!canStart}
                 onClick={() => uploadRef.current?.click()}
               >
                 <Plus size={17} />새 PDF 업로드
               </Button>
             </div>
+            <LearningModeChoice
+              configuration={configuration}
+              mode={learningMode}
+              signedIn={Boolean(userId)}
+              busy={busy}
+              onSelect={(mode) => {
+                setLearningMode(mode);
+                setError("");
+              }}
+              onLogin={() => setAuthOpen(true)}
+            />
             <section className="hero">
               <div className="hero-copy">
                 <span className="pill">
@@ -395,19 +440,29 @@ export default function Workspace() {
                     void run(async () => {
                       const { project: p } = await api("/api/projects", {
                         sample: true,
+                        mode: learningMode,
                       });
                       accept(p);
                       open(p);
                       setNotice(
-                        "예제 문서입니다. AI 키가 없으면 질문 흐름을 데모로 체험합니다.",
+                        p.mode === "live"
+                          ? "Gemini가 예제 문서의 개념을 분석했습니다."
+                          : "실제 AI 호출 없는 데모입니다.",
                       );
                     })
                   }
-                  disabled={busy || !ready}
+                  disabled={!canStart}
                 >
-                  예제 문서로 시작하기 <ArrowUpRight size={16} />
+                  {learningMode === "live"
+                    ? "Gemini로 예제 분석하기"
+                    : "예제 문서로 시작하기"}{" "}
+                  <ArrowUpRight size={16} />
                 </Button>
-                <small>별도 설정 없이 학습 흐름을 경험해 보세요</small>
+                <small>
+                  {learningMode === "live"
+                    ? "로그인 후 Gemini로 실제 학습을 시작해요"
+                    : "별도 설정 없이 학습 흐름을 경험해 보세요"}
+                </small>
               </div>
               <div className="hero-art" aria-hidden="true">
                 <div className="orbit orbit-one" />
@@ -561,12 +616,12 @@ export default function Workspace() {
                   })}
                 <button
                   className="upload-card"
-                  disabled={busy || !ready}
+                  disabled={!canStart}
                   onClick={() => uploadRef.current?.click()}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (!busy && e.dataTransfer.files[0])
+                    if (canStart && e.dataTransfer.files[0])
                       void upload(e.dataTransfer.files[0]);
                   }}
                 >
@@ -646,11 +701,24 @@ export default function Workspace() {
                       직접 수정할 수 있어요.
                       <br />
                       <small>
-                        데모 분석은 문장 기반 후보입니다. 실제 AI 추출은
-                        환경변수 설정과 로그인이 필요합니다.
+                        {project.mode === "live"
+                          ? "Gemini가 문서에서 추출한 개념입니다. 근거 페이지와 학습 목표를 확인해 주세요."
+                          : "이 프로젝트는 데모입니다. 실제 AI를 사용하려면 대시보드에서 Gemini 학습을 선택해 새 프로젝트를 만들어 주세요."}
                       </small>
                     </p>
                   </div>
+                  {project.mode === "demo" && (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => {
+                        setLearningMode("live");
+                        setView("dashboard");
+                      }}
+                    >
+                      실제 Gemini 학습 준비하기 <ArrowRight size={15} />
+                    </Button>
+                  )}
                   <div className="concept-list">
                     {project.concepts.map((c, i) => (
                       <div className="concept-card" key={c.id}>
@@ -845,8 +913,7 @@ export default function Workspace() {
         )}
         {busy && (
           <div className="busy-indicator" role="status">
-            <Loader2 size={16} className="spin" /> 처리 중입니다. 잠시만 기다려
-            주세요.
+            <Loader2 size={16} className="spin" /> {operation}
           </div>
         )}
       </main>

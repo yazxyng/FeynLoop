@@ -13,7 +13,17 @@ cp .env.example .env.local
 npm run dev
 ```
 
-[로컬 앱](http://localhost:3000)을 엽니다. 비로그인 상태에서 예제 문서와 PDF 업로드로 데모를 사용할 수 있습니다.
+[로컬 앱](http://localhost:3000)을 엽니다. 기본 선택은 데모이며 비로그인 상태에서 예제 문서와 PDF 업로드로 학습 흐름을 체험할 수 있습니다.
+
+### 실제 Gemini 학습 시작
+
+1. 대시보드의 설정 상태에서 Gemini·계정 저장 설정이 준비됐는지 확인합니다. 이 표시는 환경변수 존재 여부이며 실제 API 연결 성공을 의미하지 않습니다.
+2. **실제 Gemini 학습**을 선택하고 이메일로 로그인합니다.
+3. **새 PDF 업로드** 또는 **Gemini로 예제 분석하기**를 누릅니다. 이때 문서 분석 요청이 발생합니다.
+4. 개념을 선택해 원문 없이 설명합니다. 설명·답변 제출 시 실제 Gemini 평가와 질문 생성 요청이 발생합니다.
+5. 질문을 마치면 필요한 근거만 확인한 뒤 재설명하고 결과를 저장합니다.
+
+페이지 열기, 설정 표시, 학습 방식 선택, 로그인 창 열기는 Gemini 요청을 발생시키지 않습니다. 데모를 선택하면 키와 로그인이 있어도 실제 AI를 호출하지 않습니다. 기존 데모 프로젝트의 모드는 바뀌지 않으므로 실제 모드로 새 프로젝트를 생성해야 합니다.
 
 ```sh
 npm run typecheck
@@ -79,7 +89,7 @@ npm start
 | ALLOW_DEMO | false이면 비로그인 API 사용 차단. 기본 허용 |
 | FEYNLOOP_DATA_DIR | 데모 기록을 보관할 영속 디렉터리. 기본 .feynloop-data |
 
-실제 AI는 로그인한 사용자와 Gemini 키가 모두 있을 때만 사용합니다. 세션을 만들 때의 AI/데모 모드를 저장하며, 실행 도중 실제 AI 설정이 사라지면 데모 평가로 바꾸지 않고 오류를 안내합니다. PDF 텍스트와 설명은 Google Gemini API로 전송됩니다.
+실제 AI는 사용자가 `live` 방식을 명시적으로 선택하고 로그인과 Gemini 키가 모두 준비됐을 때만 사용합니다. 설정이 빠지면 오류로 안내하며 데모로 자동 전환하지 않습니다. 세션을 만들 때의 AI/데모 모드를 저장하며, 실행 도중 실제 AI 설정이 사라지면 데모 평가로 바꾸지 않고 오류를 안내합니다. PDF 텍스트와 설명은 Google Gemini API로 전송됩니다.
 
 ### Gemini 연결 방법
 
@@ -104,7 +114,7 @@ AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이�
 | 경로 | 동작 |
 | --- | --- |
 | GET /api/projects | 본문 없는 프로젝트·학습 기록 목록 |
-| POST /api/projects | multipart PDF 업로드 또는 {"sample":true} 예제 생성 |
+| POST /api/projects | multipart의 file·mode 필드로 PDF 업로드 또는 {"sample":true,"mode":"demo" 또는 "live"} 예제 생성. mode 생략 시 demo |
 | GET /api/projects/:id | 프로젝트 복원. conceptId 쿼리로 선택한 완료 세션의 결과 또는 검토 단계의 이미 요청한 근거 확인 |
 | POST /api/projects/:id | start / draft / submit / hint / evidence / rewrite / restart / editConcept 명령 |
 

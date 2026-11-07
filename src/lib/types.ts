@@ -70,3 +70,16 @@ export function newStudy(conceptId: string, attempt = 1): Study {
     attempt,
   };
 }
+
+export const appConfigurationSchema = z.object({
+  ai: z.enum(["live", "demo"]),
+  provider: z.literal("gemini"),
+  demoAllowed: z.boolean(),
+  readiness: z.object({
+    gemini: z.boolean(),
+    authentication: z.boolean(),
+    storage: z.boolean(),
+  }),
+});
+export type AppConfiguration = z.infer<typeof appConfigurationSchema>;
+export type LearningMode = "demo" | "live";
