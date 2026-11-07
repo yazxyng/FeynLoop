@@ -1847,3 +1847,59 @@ h1 > span {
     gap: 10px;
   }
 }
+
+.email-login {
+  width: 100%;
+}
+.login-symbol {
+  display: inline-flex;
+  color: #56845c;
+  border-radius: 12px;
+  padding: 13px;
+  background: #edf4e8;
+}
+.email-login label {
+  font-size: 11px;
+  color: #7d8c74;
+  font-weight: 600;
+}
+.email-login .code-input {
+  text-align: center;
+  letter-spacing: 0.25em;
+  font-size: 20px;
+  padding: 15px;
+}
+.email-login .code-input::placeholder {
+  font-size: 12px;
+  letter-spacing: 0;
+  color: #a7afa1;
+}
+.login-alert {
+  color: #6b8560;
+  background: #f0f6eb;
+  border: 1px solid #dbe7d2;
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 1.8;
+  padding: 11px 13px;
+  margin-bottom: 16px;
+}
+.login-alert.error {
+  background: #fff4ef;
+  border-color: #f0d6c9;
+  color: #a06550;
+}
+.login-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 13px;
+}
+.login-help {
+  display: block;
+  color: #a1aa9b;
+  font-size: 10px;
+  line-height: 1.8;
+  margin-bottom: 15px;
+}

@@ -35,6 +35,7 @@ import {
 } from "@/lib/types";
 import StudyRoom from "./study-room";
 import LearningModeChoice from "./learning-mode";
+import EmailLogin from "./email-login";
 type View = "dashboard" | "concepts" | "study" | "result";
 export default function Workspace() {
   const [projects, setProjects] = useState<Project[]>([]),
@@ -47,7 +48,6 @@ export default function Workspace() {
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
     [tab, setTab] = useState("editor"),
-    [email, setEmail] = useState(""),
     [userId, setUserId] = useState<string | null>(null),
     [configuration, setConfiguration] = useState<AppConfiguration | null>(null),
     [learningMode, setLearningMode] = useState<LearningMode>("demo"),
@@ -918,57 +918,15 @@ export default function Workspace() {
         )}
       </main>
       {authOpen && (
-        <div className="modal-backdrop">
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="계정 로그인"
-          >
-            <button
-              className="modal-close"
-              aria-label="닫기"
-              onClick={() => setAuthOpen(false)}
-            >
-              <X size={18} />
-            </button>
-            <span className="ai-icon">✳</span>
-            <h2>배움을 안전하게 이어가세요</h2>
-            <p>
-              {supabase
-                ? "이메일 로그인 후 프로젝트와 PDF를 내 계정에 저장합니다. 데모 기록은 별도로 유지됩니다."
-                : "Supabase 환경변수가 설정되지 않았습니다. 현재는 로그인 없이 서버의 데모 저장 방식으로 사용할 수 있습니다."}
-            </p>
-            {supabase && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void run(async () => {
-                    const { error } = await supabase!.auth.signInWithOtp({
-                      email,
-                      options: { emailRedirectTo: window.location.origin },
-                    });
-                    if (error) throw error;
-                    setNotice("이메일로 로그인 링크를 보냈습니다.");
-                    setAuthOpen(false);
-                  });
-                }}
-              >
-                <input
-                  type="email"
-                  required
-                  placeholder="이메일 주소"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-                <Button disabled={busy}>로그인 링크 받기</Button>
-              </form>
-            )}
-            <Button variant="ghost" onClick={() => setAuthOpen(false)}>
-              학습 공간으로 돌아가기
-            </Button>
-          </section>
-        </div>
+        <EmailLogin
+          onClose={() => setAuthOpen(false)}
+          onSuccess={() => {
+            setAuthOpen(false);
+            setNotice(
+              "인증번호로 로그인했습니다. 계정의 학습 기록을 불러옵니다.",
+            );
+          }}
+        />
       )}
     </div>
   );
