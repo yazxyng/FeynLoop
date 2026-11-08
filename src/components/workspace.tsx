@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { draftRecoveryKey, recoverDraft } from "@/lib/draft-recovery";
 import {
   newStudy,
   appConfigurationSchema,
@@ -104,7 +105,17 @@ export default function Workspace() {
     if (!res.ok) throw new Error(data.error || "요청을 처리하지 못했습니다.");
     return data;
   }
+  function selectMode(mode: LearningMode) {
+    setLearningMode(mode);
+    try {
+      localStorage.setItem("feynloop:learning-mode", mode);
+    } catch {}
+  }
   useEffect(() => {
+    try {
+      if (localStorage.getItem("feynloop:learning-mode") === "live")
+        setLearningMode("live");
+    } catch {}
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => setConfiguration(appConfigurationSchema.parse(d)))
@@ -253,6 +264,18 @@ export default function Workspace() {
       if (!selectedProject) throw new Error("학습할 문서를 선택해 주세요.");
       const prepared = await persistEdits(selectedProject);
       const p = await command("start", {}, prepared, c.id);
+      const session = p.studies[c.id];
+      if (!["done", "review"].includes(session.phase)) {
+        const key = draftRecoveryKey(userId || "guest", p.id, session);
+        const draft = recoverDraft(sessionStorage, key, session.draft);
+        if (draft !== session.draft) {
+          accept({
+            ...p,
+            studies: { ...p.studies, [c.id]: { ...session, draft } },
+          });
+          setNotice("이 브라우저에 남아 있던 작성 중 설명을 복구했어요.");
+        }
+      }
       setProjectId(p.id);
       setConceptId(c.id);
       setView(p.studies[c.id].phase === "done" ? "result" : "study");
@@ -301,7 +324,12 @@ export default function Workspace() {
   async function submit() {
     if (!study.draft.trim()) return;
     await run(async () => {
+      const key =
+        project && draftRecoveryKey(userId || "guest", project.id, study);
       const p = await command("submit", { text: study.draft });
+      try {
+        if (key) sessionStorage.removeItem(key);
+      } catch {}
       const s = p.studies[conceptId];
       if (s.phase === "done") setView("result");
     });
@@ -421,7 +449,7 @@ export default function Workspace() {
                   else navigate("upload");
                 }}
               />
-              <details className="home-mode-settings">
+              <details className="home-mode-settings" open>
                 <summary>
                   <Settings2 size={15} />
                   {learningMode === "demo"
@@ -434,7 +462,7 @@ export default function Workspace() {
                   mode={learningMode}
                   signedIn={Boolean(userId)}
                   busy={busy}
-                  onSelect={setLearningMode}
+                  onSelect={selectMode}
                   onLogin={() => setAuthOpen(true)}
                 />
               </details>
@@ -457,7 +485,7 @@ export default function Workspace() {
               signedIn={Boolean(userId)}
               busy={busy}
               canStart={canStart}
-              onMode={setLearningMode}
+              onMode={selectMode}
               onLogin={() => setAuthOpen(true)}
               onChooseFile={() => uploadRef.current?.click()}
               onFile={(file) => void upload(file)}
@@ -493,29 +521,62 @@ export default function Workspace() {
             />
           )}
           {view === "study" && project && concept && (
-            <StudyRoom
-              project={project}
-              concept={concept}
-              study={study}
-              busy={busy}
-              onDraft={(text) => patchStudy({ ...study, draft: text })}
-              onSubmit={() => void submit()}
-              onAction={(action, extra) =>
-                void run(async () => {
-                  await command(action, {
-                    ...extra,
-                    ...(action === "hint" ? { text: study.draft } : {}),
-                  });
-                })
-              }
-              onSave={() =>
-                void run(async () => {
-                  await command("draft", { text: study.draft });
-                  setNotice("설명을 저장했어요. 여기서 다시 이어갈 수 있어요.");
-                })
-              }
-              onBack={onBackFromStudy}
-            />
+            <>
+              {project.mode === "demo" && (
+                <div className="alert" role="status">
+                  <span>
+                    이 카드는 데모예요. 실제 AI 평가를 받으려면 Gemini 방식으로
+                    PDF를 새로 등록해 주세요.
+                  </span>
+                  <button
+                    disabled={busy}
+                    onClick={() => {
+                      void run(async () => {
+                        if (study.phase !== "review")
+                          await command("draft", { text: study.draft });
+                        selectMode("live");
+                        setView("upload");
+                      });
+                    }}
+                  >
+                    실제 학습 준비
+                  </button>
+                </div>
+              )}
+              <StudyRoom
+                project={project}
+                concept={concept}
+                study={study}
+                busy={busy}
+                onDraft={(text) => {
+                  patchStudy({ ...study, draft: text });
+                  try {
+                    sessionStorage.setItem(
+                      draftRecoveryKey(userId || "guest", project.id, study),
+                      text,
+                    );
+                  } catch {}
+                }}
+                onSubmit={() => void submit()}
+                onAction={(action, extra) =>
+                  void run(async () => {
+                    await command(action, {
+                      ...extra,
+                      ...(action === "hint" ? { text: study.draft } : {}),
+                    });
+                  })
+                }
+                onSave={() =>
+                  void run(async () => {
+                    await command("draft", { text: study.draft });
+                    setNotice(
+                      "설명을 저장했어요. 여기서 다시 이어갈 수 있어요.",
+                    );
+                  })
+                }
+                onBack={onBackFromStudy}
+              />
+            </>
           )}
           {view === "result" && project && concept && (
             <ResultView
