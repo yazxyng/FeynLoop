@@ -89,6 +89,14 @@ function mockServices(t: TestContext) {
                   ? ""
                   : `질문 ${payload.turns.length + 1}: ${payload.explanation.slice(0, 30)}에서 이유는 무엇인가요?`,
               hints: ["생각할 단서", "원인과 결과를 나눠 보세요."],
+              questionGrounding:
+                payload.final || payload.turns.length >= 3
+                  ? null
+                  : {
+                      answerQuote: payload.explanation.slice(0, 60),
+                      page: payload.pages[0].number,
+                      quote: payload.pages[0].text.slice(0, 20),
+                    },
             };
         return Response.json({
           candidates: [
