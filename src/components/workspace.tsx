@@ -522,27 +522,6 @@ export default function Workspace() {
           )}
           {view === "study" && project && concept && (
             <>
-              {project.mode === "demo" && (
-                <div className="alert" role="status">
-                  <span>
-                    이 카드는 데모예요. 실제 AI 평가를 받으려면 Gemini 방식으로
-                    PDF를 새로 등록해 주세요.
-                  </span>
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      void run(async () => {
-                        if (study.phase !== "review")
-                          await command("draft", { text: study.draft });
-                        selectMode("live");
-                        setView("upload");
-                      });
-                    }}
-                  >
-                    실제 학습 준비
-                  </button>
-                </div>
-              )}
               <StudyRoom
                 project={project}
                 concept={concept}
@@ -576,6 +555,30 @@ export default function Workspace() {
                 }
                 onBack={onBackFromStudy}
               />
+              {project.mode === "demo" && study.phase !== "questions" && (
+                <details className="session-demo-notice">
+                  <summary>데모 학습 · 실제 AI 학습 안내</summary>
+                  <div className="alert" role="status">
+                    <span>
+                      이 카드는 데모예요. 실제 AI 평가를 받으려면 Gemini
+                      방식으로 PDF를 새로 등록해 주세요.
+                    </span>
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        void run(async () => {
+                          if (study.phase !== "review")
+                            await command("draft", { text: study.draft });
+                          selectMode("live");
+                          setView("upload");
+                        });
+                      }}
+                    >
+                      실제 학습 준비
+                    </button>
+                  </div>
+                </details>
+              )}
             </>
           )}
           {view === "result" && project && concept && (

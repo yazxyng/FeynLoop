@@ -2,6 +2,8 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
+  Check,
   BookOpen,
   ChevronDown,
   Lightbulb,
@@ -33,21 +35,109 @@ export default function StudyRoom({
   onSave,
   onBack,
 }: Props) {
+  const asking = study.phase === "questions";
   const review = study.phase === "review",
     final = study.phase === "rewrite",
-    step =
-      study.phase === "explain"
-        ? 1
-        : study.phase === "questions"
-          ? 2
-          : review
-            ? 3
-            : 4;
+    step = study.phase === "explain" ? 1 : asking ? 2 : review ? 3 : 4;
   const question = final
     ? "질문에서 찾은 빈틈을 떠올리며, 처음부터 다시 설명해 줄래?"
-    : study.phase === "questions"
+    : asking
       ? study.feedback?.question
       : `${concept.title}? 처음 들어봐. 처음 배우는 친구한테 말하듯이 설명해 줄래?`;
+  if (asking) {
+    return (
+      <section className="deep-dive" aria-label="더 파고들기">
+        <header className="deep-toolbar">
+          <button
+            className="icon-button"
+            disabled={busy}
+            onClick={onBack}
+            aria-label="개념 목록으로 돌아가기"
+          >
+            <ArrowLeft size={22} />
+          </button>
+          <div>
+            <h1>더 파고들기</h1>
+            <p>질문 {study.turns.length + 1} / 3</p>
+          </div>
+          <button className="text-button" disabled={busy} onClick={onBack}>
+            끝내기
+          </button>
+        </header>
+        <div className="deep-topic">
+          <span>
+            주제 <strong>{concept.title}</strong>
+          </span>
+          <span className="deep-mode">
+            <i />
+            {project.mode === "demo" ? "데모 모드" : "Gemini 모드"}
+          </span>
+        </div>
+        <div className="deep-conversation" aria-live="polite">
+          {study.turns.map((turn, i) => (
+            <article className="deep-turn" key={i}>
+              <div className="deep-completed">
+                <Check size={15} />
+                <span>질문 {i + 1} · 답변 완료</span>
+                <span>기록됨</span>
+              </div>
+              <h2>이전 질문</h2>
+              <p className="deep-bubble ai-bubble">{turn.question}</p>
+              <p className="deep-bubble user-bubble">{turn.answer}</p>
+            </article>
+          ))}
+          <article className="deep-current">
+            <h2>{study.turns.length ? "연결 질문" : "첫 번째 질문"}</h2>
+            <p className="deep-bubble ai-bubble">{question}</p>
+            {study.hints.map((hint, i) => (
+              <div className="deep-hint" key={i}>
+                <h2>힌트 {i + 1}</h2>
+                <p className="deep-bubble ai-bubble">{hint}</p>
+              </div>
+            ))}
+            <button
+              className="hint-button"
+              disabled={busy || study.hints.length >= 2}
+              onClick={() => onAction("hint")}
+            >
+              <Lightbulb size={16} />
+              {study.hints.length >= 2
+                ? "두 단계 힌트를 확인했어요"
+                : "힌트 질문 받기"}
+            </button>
+          </article>
+        </div>
+        <form
+          className="deep-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!busy && study.draft.trim()) onSubmit();
+          }}
+        >
+          <textarea
+            aria-label="설명 작성"
+            placeholder="내 생각을 말해 봐..."
+            value={study.draft}
+            disabled={busy}
+            maxLength={15000}
+            rows={1}
+            onChange={(event) => onDraft(event.target.value)}
+          />
+          <button
+            aria-label="답변 보내기"
+            disabled={busy || !study.draft.trim()}
+            type="submit"
+          >
+            {busy ? (
+              <Loader2 size={21} className="spin" />
+            ) : (
+              <ArrowUp size={24} />
+            )}
+          </button>
+        </form>
+      </section>
+    );
+  }
   return (
     <>
       <div className="session-toolbar">
@@ -99,13 +189,11 @@ export default function StudyRoom({
                 <strong>짝꿍 AI</strong>
                 <span>
                   {project.mode === "demo" ? "데모" : "Gemini"}
-                  {study.phase === "questions"
-                    ? ` · 질문 ${study.turns.length + 1} / 3`
-                    : ""}
+                  {asking ? ` · 질문 ${study.turns.length + 1} / 3` : ""}
                 </span>
               </div>
               <p>{question}</p>
-              {study.phase === "questions" && (
+              {asking && (
                 <>
                   <div className="hint-stack">
                     {study.hints.map((hint, i) => (
@@ -129,7 +217,7 @@ export default function StudyRoom({
               )}
             </section>
           )}
-          {study.phase === "questions" && study.turns.length > 0 && (
+          {asking && study.turns.length > 0 && (
             <details className="conversation-history">
               <summary>
                 지금까지 나눈 대화 <span>{study.turns.length}개</span>
@@ -215,7 +303,7 @@ export default function StudyRoom({
                 <label htmlFor="explanation-input">
                   {final
                     ? "처음부터 다시, 내 설명"
-                    : study.phase === "questions"
+                    : asking
                       ? "나의 답변"
                       : "내 설명"}
                 </label>
@@ -254,7 +342,7 @@ export default function StudyRoom({
                   </>
                 ) : final ? (
                   "재설명 마치고 결과 보기"
-                ) : study.phase === "questions" ? (
+                ) : asking ? (
                   "답변 보내기"
                 ) : (
                   "설명 제출"
