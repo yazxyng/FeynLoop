@@ -70,8 +70,18 @@ function useWorkspaceController() {
     [operation, setOperation] = useState(
       "처리 중입니다. 잠시만 기다려 주세요.",
     ),
-    [authOpen, setAuthOpen] = useState(false),
+    [demoAccess, setDemoAccess] = useState(false),
     [authVersion, setAuthVersion] = useState(0);
+  function setAuthOpen(open: boolean) {
+    if (open) router.push("/login");
+  }
+  function enterDemo() {
+    setDemoAccess(true);
+    selectMode("demo");
+    try {
+      sessionStorage.setItem("feynloop:demo-access", "true");
+    } catch {}
+  }
   const uploadRef = useRef<HTMLInputElement>(null),
     running = useRef(false),
     draftEdits = useRef(new Map<string, string>()),
@@ -97,6 +107,7 @@ function useWorkspaceController() {
   }
   useEffect(() => {
     try {
+      setDemoAccess(sessionStorage.getItem("feynloop:demo-access") === "true");
       if (localStorage.getItem("feynloop:learning-mode") === "live")
         setLearningMode("live");
     } catch {}
@@ -115,10 +126,20 @@ function useWorkspaceController() {
       setConceptDrafts({});
       setCollectionId("");
       setError("");
+      setUserId(null);
       try {
         const { user } = await accountRequest();
         if (!active || current !== generation.current) return;
         setUserId(user?.id || null);
+        if (user) {
+          setLearningMode("live");
+          setDemoAccess(false);
+          try {
+            if (localStorage.getItem("feynloop:learning-mode") === "demo")
+              setLearningMode("demo");
+            sessionStorage.removeItem("feynloop:demo-access");
+          } catch {}
+        }
         const data = await api("/api/projects");
         if (active && current === generation.current)
           setProjects(data.projects);
@@ -205,6 +226,7 @@ function useWorkspaceController() {
   ) {
     if (running.current) return;
     running.current = true;
+    const requestGeneration = generation.current;
     setOperation(label);
     setBusyPresentation(presentation);
     setBusyPath(pathname);
@@ -214,7 +236,13 @@ function useWorkspaceController() {
     try {
       await task();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "작업을 완료하지 못했습니다.");
+      if (
+        currentPath.current === pathname &&
+        requestGeneration === generation.current
+      )
+        setError(
+          e instanceof Error ? e.message : "작업을 완료하지 못했습니다.",
+        );
     } finally {
       running.current = false;
       setBusy(false);
@@ -334,11 +362,8 @@ function useWorkspaceController() {
     });
   }
   function detail(entry: CardEntry) {
-    go({
-      view: "detail",
-      projectId: entry.project.id,
-      conceptId: entry.concept.id,
-    });
+    // 카드를 고르면 별도 설명 작성 화면을 거치지 않고 대화로 이어갑니다.
+    start(entry.concept, entry.project);
   }
   async function sampleProject() {
     await run(
@@ -545,6 +570,11 @@ function useWorkspaceController() {
     ((routeReadPath === pathname && !!routeError) ||
       !project ||
       (needsConcept && !concept));
+  // 다른 화면에 이전 작업의 오류가 남지 않도록 화면 이동 시 정리합니다.
+  useEffect(() => {
+    setError("");
+    setNotice("");
+  }, [pathname]);
   const activeOperation = busy && busyPath === pathname;
   return {
     pathname,
@@ -585,7 +615,8 @@ function useWorkspaceController() {
     notice,
     setError,
     setNotice,
-    authOpen,
+    demoAccess,
+    enterDemo,
     setAuthOpen,
     setAuthVersion,
     uploadRef,

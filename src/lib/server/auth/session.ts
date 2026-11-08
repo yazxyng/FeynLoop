@@ -14,10 +14,16 @@ export function accountToken(req: Request) {
     .find((part) => part.startsWith(ACCOUNT_COOKIE + "="))
     ?.slice(ACCOUNT_COOKIE.length + 1);
 }
-export function databaseFailure() {
+export function databaseFailure(error?: { code?: string }, stage = "account") {
+  // 계정·비밀번호·DB 오류 원문을 기록하지 않고 실패 단계와 코드만 남깁니다.
+  console.error(
+    "FeynLoop account storage:",
+    stage,
+    error?.code || "connection",
+  );
   return new ApiError(
     503,
-    "아이디 로그인 저장소를 준비하지 못했습니다. Supabase에서 20261108_accounts.sql을 실행했는지 확인해 주세요.",
+    "계정 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.",
   );
 }
 export async function currentAccount(
@@ -32,14 +38,14 @@ export async function currentAccount(
     .eq("token_hash", secretHash(token))
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
-  if (session.error) throw databaseFailure();
+  if (session.error) throw databaseFailure(session.error, "read-session");
   if (!session.data) return null;
   const account = await client
     .from("feynloop_accounts")
     .select("id,username")
     .eq("id", session.data.account_id)
     .maybeSingle();
-  if (account.error) throw databaseFailure();
+  if (account.error) throw databaseFailure(account.error, "read-account");
   return account.data;
 }
 export function setAccountCookie(
@@ -66,5 +72,5 @@ export async function revokeSession(req: Request) {
     .from("feynloop_sessions")
     .delete()
     .eq("token_hash", secretHash(token));
-  if (error) throw databaseFailure();
+  if (error) throw databaseFailure(error, "revoke-session");
 }

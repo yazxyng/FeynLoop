@@ -9,6 +9,7 @@ import {
   Save,
 } from "lucide-react";
 import type { Concept, Project, Study } from "@/lib/types";
+import InlineFeedback from "./inline-feedback";
 import { sourceReference } from "@/lib/presentation";
 type Props = {
   project: Project;
@@ -18,6 +19,9 @@ type Props = {
   typing: boolean;
   pendingMessage: string | null;
   statusMessage: string;
+  errorMessage: string;
+  noticeMessage: string;
+  onDismissFeedback: () => void;
   onDraft: (text: string) => void;
   onSubmit: () => void;
   onAction: (action: string, extra?: Record<string, unknown>) => void;
@@ -32,6 +36,9 @@ export default function StudyRoom({
   typing,
   pendingMessage,
   statusMessage,
+  errorMessage,
+  noticeMessage,
+  onDismissFeedback,
   onDraft,
   onSubmit,
   onAction,
@@ -53,6 +60,8 @@ export default function StudyRoom({
     study.evidence?.length,
     busy,
     pendingMessage,
+    errorMessage,
+    noticeMessage,
   ]);
   useLayoutEffect(() => {
     if (composer.current) {
@@ -241,6 +250,11 @@ export default function StudyRoom({
             </p>
           )}
         </div>
+        <InlineFeedback
+          error={errorMessage}
+          notice={noticeMessage}
+          onDismiss={onDismissFeedback}
+        />
         <div ref={latest} aria-hidden="true" />
       </div>
       {!reviewing && (

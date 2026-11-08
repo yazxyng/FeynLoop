@@ -3452,93 +3452,86 @@ body:has(.dark-mode) {
 .records-subject-score { white-space: nowrap; }
 
 
-/* 공통 하단 메뉴: 선택은 URL에 따라 유지하고, 나머지 이름은 hover/focus 때만 표시합니다. */
+/* 공통 하단 메뉴: 버튼 폭과 아이콘 위치를 고정하고 움직임 없이 전환합니다. */
 .app-navigation {
   position: fixed;
   left: 50%;
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
-  width: min(560px, calc(100% - 48px));
-  height: 64px;
+  width: min(560px, calc(100% - 32px));
+  height: 72px;
   padding: 7px;
   border-radius: 999px;
   background: #111113;
-  box-shadow: 0 8px 25px #0000000a;
   z-index: 30;
-  isolation: isolate;
 }
 .app-navigation > a {
-  position: relative;
-  z-index: 1;
-  flex: 1 1 0;
-  min-width: 0;
-  height: 50px;
-  padding: 0 12px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
   border-radius: 999px;
   color: #8e8e93;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 650;
-  transition: flex-grow 280ms cubic-bezier(.22,1,.36,1), color 180ms ease;
 }
 .app-navigation > a svg { flex-shrink: 0; width: 21px; height: 21px; }
-.app-navigation > a.active { flex-grow: 1.3; color: #141416; }
-.app-navigation .navigation-label {
-  display: block;
-  max-width: 0;
-  margin-left: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateX(-4px);
-  transition: max-width 280ms cubic-bezier(.22,1,.36,1), margin-left 280ms cubic-bezier(.22,1,.36,1), opacity 180ms ease, transform 280ms ease;
-}
-.app-navigation > a:is(.active, :focus-visible) .navigation-label { max-width: 100px; margin-left: 8px; opacity: 1; transform: translateX(0); }
-.app-navigation > a:focus-visible { flex-grow: 1.3; outline-color: var(--accent); outline-offset: 0; }
+.app-navigation > a.active { background: #f6f6f1; color: #141416; }
+.app-navigation .navigation-label { visibility: hidden; line-height: 14px; white-space: nowrap; }
+.app-navigation > a:is(.active, :focus-visible) .navigation-label { visibility: visible; }
+.app-navigation > a:focus-visible { outline-color: var(--accent); }
 .app-navigation > a[aria-disabled="true"] { cursor: default; opacity: .5; }
-.navigation-indicator {
-  position: absolute;
-  left: 0;
-  top: 7px;
-  height: 50px;
-  border-radius: 999px;
-  background: #f6f6f1;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 1;
-  will-change: transform, width;
-}
-.navigation-indicator[data-animate="true"] { transition: transform 320ms cubic-bezier(.22,1,.36,1), width 320ms cubic-bezier(.22,1,.36,1); }
-.app-navigation[data-ready="false"] .navigation-indicator { opacity: 0; }
-.app-navigation[data-ready="false"] > a.active { background: #f6f6f1; }
 @media (hover: hover) and (pointer: fine) {
-  .app-navigation > a:hover { flex-grow: 1.3; }
   .app-navigation > a:not(.active):hover { color: #f2f2ed; }
-  .app-navigation > a:hover .navigation-label { max-width: 100px; margin-left: 8px; opacity: 1; transform: translateX(0); }
-}
-@media (max-width: 760px) {
-  .app-navigation > a { padding-inline: 6px; font-size: 12px; }
-  .app-navigation > a.active { flex-grow: 1.9; }
+  .app-navigation > a:hover .navigation-label { visibility: visible; }
 }
 @media (max-width: 360px) {
-  .app-navigation > a { padding-inline: 4px; font-size: 11px; }
-  .app-navigation > a.active { flex-grow: 2.7; }
+  .app-navigation { gap: 0; }
+  .app-navigation > a { font-size: 10px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .app-navigation > a, .app-navigation .navigation-label, .navigation-indicator[data-animate="true"] { transition: none; }
-}
-.app-navigation > a:is(.active, :focus-visible) { min-width: max-content; }
-@media (hover: hover) and (pointer: fine) {
-  .app-navigation > a:hover { min-width: max-content; }
-}
-@media (max-width: 360px) {
-  .app-navigation > a:is(.active, :focus-visible) .navigation-label { margin-left: 6px; }
-}
-@media (max-width: 360px) and (hover: hover) and (pointer: fine) {
-  .app-navigation > a:hover .navigation-label { margin-left: 6px; }
+
+/* 첫 방문 소개와 로그인: 문구는 welcome.tsx, 로그인 문구는 auth/login-copy.ts에서 수정합니다. */
+.welcome-page { min-height: 100svh; max-width: 1120px; margin: auto; padding: 32px 32px 24px; }
+.welcome-header { display: flex; align-items: center; justify-content: space-between; }
+.welcome-login { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.welcome-hero { padding: 88px 0 60px; text-align: center; }
+.welcome-eyebrow { display: inline-block; background: #e6f4b3; padding: 9px 16px; border-radius: 999px; font-size: 13px; }
+.welcome-hero h1 { margin-top: 26px; font-size: clamp(32px, 5.2vw, 60px); line-height: 1.3; letter-spacing: -.05em; font-weight: 750; word-break: keep-all; }
+.welcome-hero h1 span { color: #70784c; }
+.welcome-hero > p { margin: 22px 0 30px; color: #71716b; font-size: 17px; line-height: 1.8; }
+.welcome-start { display: flex; align-items: center; justify-content: center; gap: 36px; width: min(100%, 300px); min-height: 58px; margin: auto; border-radius: 999px; background: #d9f45c; font-size: 16px; font-weight: 700; }
+.welcome-demo { display: block; margin: 18px auto 0; font-size: 12px; color: #77776f; text-decoration: underline; text-underline-offset: 4px; }
+.welcome-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.welcome-steps article { padding: 28px; border-radius: 28px; background: white; }
+.welcome-steps article > div { display: flex; justify-content: space-between; align-items: center; color: #6a7250; }
+.welcome-steps article > div span { font-size: 12px; color: #93958b; }
+.welcome-steps h2 { margin: 22px 0 10px; font-size: 18px; font-weight: 700; }
+.welcome-steps p { color: #74746e; font-size: 14px; line-height: 1.8; word-break: keep-all; }
+.welcome-footer { text-align: center; color: #8a8a83; font-size: 12px; padding: 32px 0 8px; }
+.auth-page { min-height: 100svh; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 32px; }
+.auth-page > .brand { align-self: flex-start; }
+.login-page-content { width: min(100%, 440px); margin: auto; }
+.login-page-content .password-login { position: relative; width: 100%; max-height: none; padding: 32px; box-shadow: none; border: 1px solid #e7e7e0; }
+.entry-loading { min-height: 100svh; display: grid; place-items: center; color: #77776f; font-size: 14px; }
+.inline-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; color: #6b7255; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.inline-feedback.has-error { color: #a3543f; }
+.inline-feedback > span { flex: 1 1 180px; }
+.inline-feedback > button:not(.feedback-dismiss) { font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.feedback-dismiss { display: grid; place-items: center; padding: 8px; }
+.study-chat-log .inline-feedback { width: fit-content; max-width: 100%; padding: 8px 12px; background: #ffffff08; border-radius: 12px; color: #bebeb6; }
+.study-chat-log .inline-feedback.has-error { color: #e5b5a4; }
+@media (max-width: 600px) {
+  .welcome-page { padding: 24px 20px; }
+  .welcome-hero { padding: 60px 0 40px; }
+  .welcome-hero > p { font-size: 15px; }
+  .welcome-steps { grid-template-columns: 1fr; gap: 12px; }
+  .welcome-steps article { padding: 24px; }
+  .welcome-steps h2 { margin-top: 16px; }
+  .auth-page { padding: 24px 16px; }
+  .login-page-content .password-login { padding: 28px 24px; }
 }

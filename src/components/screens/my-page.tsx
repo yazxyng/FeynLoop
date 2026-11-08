@@ -18,6 +18,7 @@ import { AccountRequestError } from "@/lib/account-client";
 import { Button } from "../ui/button";
 import PasswordField from "../auth/password-field";
 import LearningHeatmap from "./learning-heatmap";
+import InlineFeedback from "../inline-feedback";
 import ProfilePlans from "./profile-plans";
 
 type Props = {
@@ -124,22 +125,22 @@ export default function MyPage({
   }
   const disabled = busy || retrySeconds > 0;
   const waiting = retrySeconds > 0 ? `${retrySeconds}초 후 다시 시도` : "";
+  const feedback = (
+    <InlineFeedback
+      error={error}
+      notice={notice}
+      onDismiss={() => {
+        setError("");
+        setNotice("");
+      }}
+    />
+  );
   return (
     <div className="my-page">
       <div className="my-page-title">
         <h1>마이페이지</h1>
         <p>조금씩 쌓인 설명이, 나의 배움이 돼요.</p>
       </div>
-      {error && (
-        <div className="login-alert error" role="alert">
-          {error}
-        </div>
-      )}
-      {notice && (
-        <div className="login-alert" role="status">
-          {notice}
-        </div>
-      )}
       {!signedIn ? (
         <section className="profile-card profile-signin">
           <div className="profile-avatar">
@@ -155,6 +156,7 @@ export default function MyPage({
         </div>
       ) : !profile ? (
         <section className="profile-card profile-unavailable">
+          {feedback}
           <h2>계정 정보를 불러오지 못했어요</h2>
           <p>연결과 마이페이지 설정을 확인한 뒤 다시 시도해 주세요.</p>
           <Button disabled={busy} onClick={() => void run(loadProfile)}>
@@ -250,6 +252,7 @@ export default function MyPage({
                 <Button disabled={disabled}>
                   {waiting || (busy ? "저장 중…" : "프로필 저장")}
                 </Button>
+                {feedback}
               </form>
             </section>
           )}
@@ -359,6 +362,7 @@ export default function MyPage({
                     복구코드는 그대로 유지돼요. 현재 비밀번호를 잊었다면 로그인
                     화면에서 복구코드로 재설정할 수 있어요.
                   </small>
+                  {feedback}
                 </form>
               </div>
             )}
@@ -416,6 +420,7 @@ export default function MyPage({
               }
             />
           )}
+          {(!panel || panel === "plans") && feedback}
           <button
             className="profile-logout"
             disabled={busy}

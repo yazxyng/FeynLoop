@@ -6,6 +6,7 @@ type LoginFooterProps = {
   isBusy: boolean;
   onChangeStep: (step: LoginStep) => void;
   onClose: () => void;
+  closeLabel?: string;
 };
 
 // 같은 .login-link 스타일을 사용해 모든 링크의 왼쪽 여백을 맞춥니다.
@@ -14,6 +15,7 @@ export default function LoginFooter({
   isBusy,
   onChangeStep,
   onClose,
+  closeLabel,
 }: LoginFooterProps) {
   return (
     <nav className="login-footer" aria-label="로그인 도움 메뉴">
@@ -53,7 +55,7 @@ export default function LoginFooter({
         disabled={isBusy}
         onClick={onClose}
       >
-        {LOGIN_LINKS.close}
+        {closeLabel || LOGIN_LINKS.close}
       </button>
     </nav>
   );

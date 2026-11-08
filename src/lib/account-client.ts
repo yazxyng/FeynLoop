@@ -19,6 +19,7 @@ export async function accountRequest(
       method: action ? "POST" : "GET",
       cache: "no-store",
       credentials: "same-origin",
+      signal: AbortSignal.timeout(30_000),
       ...(action
         ? {
             headers: { "Content-Type": "application/json" },
@@ -26,9 +27,12 @@ export async function accountRequest(
           }
         : {}),
     });
-  } catch {
+  } catch (error) {
     throw new AccountRequestError(
-      "로그인 서버에 연결하지 못했어요. 연결 상태를 확인해 주세요.",
+      error instanceof Error &&
+        ["TimeoutError", "AbortError"].includes(error.name)
+        ? "응답이 늦어지고 있어요. 가입 요청이었다면 먼저 같은 아이디로 로그인을 확인해 주세요."
+        : "로그인 서버에 연결하지 못했어요. 연결 상태를 확인해 주세요.",
     );
   }
   const data = await response.json().catch(() => null);

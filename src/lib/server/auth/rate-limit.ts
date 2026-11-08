@@ -36,7 +36,8 @@ export async function limitAuthAttempt(
       p_limit: rule.limit,
       p_window_seconds: 900,
     });
-    if (error || typeof data !== "number") throw databaseFailure();
+    if (error || typeof data !== "number")
+      throw databaseFailure(error || undefined, "request-limit");
     if (data > 0) throw new AccountRateLimit(data);
   }
 }

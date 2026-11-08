@@ -75,14 +75,14 @@ export async function POST(req: Request) {
           409,
           "이미 사용 중인 아이디예요. 다른 아이디를 입력해 주세요.",
         );
-      if (error) throw databaseFailure();
+      if (error) throw databaseFailure(error, "register");
     } else {
       const { data: account, error } = await client
         .from("feynloop_accounts")
         .select("id,username,password_hash,recovery_hash")
         .eq("username", input.username)
         .maybeSingle();
-      if (error) throw databaseFailure();
+      if (error) throw databaseFailure(error, "find-account");
       if (input.action === "login") {
         const valid = await verifyPassword(
           input.password,
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
             account_id: account.id,
             expires_at: expiresAt,
           });
-        if (saved.error) throw databaseFailure();
+        if (saved.error) throw databaseFailure(saved.error, "create-session");
       } else {
         if (
           !account ||
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
           p_token_hash: session.hash,
           p_expires_at: expiresAt,
         });
-        if (updated.error) throw databaseFailure();
+        if (updated.error) throw databaseFailure(updated.error, "recover");
         if (!updated.data)
           throw new ApiError(
             401,
