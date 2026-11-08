@@ -2734,3 +2734,27 @@ body:has(.dark-mode) {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
+.account-input-help {
+  color: #85877d;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.recovery-code {
+  font-family: ui-monospace, monospace;
+  overflow-wrap: anywhere;
+  user-select: all;
+  background: #e9edda;
+  border: 1px solid #d8dfbc;
+  border-radius: 14px;
+  padding: 18px;
+  line-height: 1.8;
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+.account-confirm-button {
+  width: 100%;
+}
+.account-menu-actions {
+  display: grid;
+  gap: 12px;
+}

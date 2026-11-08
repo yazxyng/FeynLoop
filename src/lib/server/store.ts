@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { database as admin } from "./database";
 import {
   mkdir,
   readFile,
@@ -13,15 +13,6 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Identity } from "./http";
 import type { StoredProject, PrivateProject } from "./models";
 import { ApiError } from "./errors";
-function admin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL,
-    key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key)
-    throw new ApiError(503, "서버 저장소 환경변수를 설정해 주세요.");
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
 async function directory(id: Identity) {
   const root =
     process.env.FEYNLOOP_DATA_DIR || join(process.cwd(), ".feynloop-data");
@@ -53,7 +44,7 @@ async function atomic(path: string, value: unknown) {
 export async function listProjects(id: Identity): Promise<PrivateProject[]> {
   if (id.userId) {
     const { data, error } = await admin()
-      .from("feynloop_projects")
+      .from(id.account ? "feynloop_account_projects" : "feynloop_projects")
       .select("state")
       .eq("user_id", id.userId)
       .order("updated_at", { ascending: false });
@@ -79,7 +70,7 @@ export async function loadProject(
   if (id.userId) {
     const client = admin();
     const { data, error } = await client
-      .from("feynloop_projects")
+      .from(id.account ? "feynloop_account_projects" : "feynloop_projects")
       .select("state,file_path")
       .eq("id", projectId)
       .eq("user_id", id.userId)
@@ -87,7 +78,7 @@ export async function loadProject(
     if (error) throw new ApiError(503, "프로젝트를 읽지 못했습니다.");
     if (!data) throw new ApiError(404, "프로젝트를 찾을 수 없습니다.");
     const source = await client
-      .from("feynloop_sources")
+      .from(id.account ? "feynloop_account_sources" : "feynloop_sources")
       .select("pages")
       .eq("project_id", projectId)
       .eq("user_id", id.userId)
@@ -123,13 +114,18 @@ export async function createProject(
         .upload(path!, file, { contentType: "application/pdf" });
       if (uploaded.error) throw new ApiError(503, "PDF를 저장하지 못했습니다.");
     }
-    const { error } = await client.rpc("create_feynloop_project", {
-      p_id: record.project.id,
-      p_user_id: id.userId,
-      p_state: record.project,
-      p_pages: record.pages,
-      p_file_path: path,
-    });
+    const { error } = await client.rpc(
+      id.account
+        ? "create_feynloop_account_project"
+        : "create_feynloop_project",
+      {
+        p_id: record.project.id,
+        p_user_id: id.userId,
+        p_state: record.project,
+        p_pages: record.pages,
+        p_file_path: path,
+      },
+    );
     if (error) {
       if (path) await client.storage.from("pdfs").remove([path]);
       throw new ApiError(
@@ -152,7 +148,7 @@ export async function updateProject(
 ) {
   if (id.userId) {
     const { data, error } = await admin()
-      .from("feynloop_projects")
+      .from(id.account ? "feynloop_account_projects" : "feynloop_projects")
       .update({
         state: project,
         version: project.version,

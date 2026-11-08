@@ -35,7 +35,7 @@ export default function PasswordField({
           autoComplete={isNewPassword ? "new-password" : "current-password"}
           required
           minLength={isNewPassword ? 8 : 1}
-          maxLength={72}
+          maxLength={128}
           disabled={isDisabled}
           placeholder={placeholder}
           value={value}

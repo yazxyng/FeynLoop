@@ -6,12 +6,12 @@ import {
   Home,
   Layers,
   Loader2,
-  LogOut,
   Plus,
   UserRound,
   X,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { accountRequest } from "@/lib/account-client";
+import AccountMenu from "./auth/account-menu";
 import { draftRecoveryKey, recoverDraft } from "@/lib/draft-recovery";
 import {
   newStudy,
@@ -63,11 +63,12 @@ export default function Workspace() {
       "처리 중입니다. 잠시만 기다려 주세요.",
     ),
     [authOpen, setAuthOpen] = useState(false),
-    [passwordRecovery, setPasswordRecovery] = useState(false);
+    [accountMenuOpen, setAccountMenuOpen] = useState(false),
+    [accountUsername, setAccountUsername] = useState(""),
+    [authVersion, setAuthVersion] = useState(0);
   const uploadRef = useRef<HTMLInputElement>(null),
     running = useRef(false),
-    generation = useRef(0),
-    accessTokenRef = useRef<string | undefined>(undefined);
+    generation = useRef(0);
   const canStart =
     !busy &&
     ready &&
@@ -84,8 +85,7 @@ export default function Workspace() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [view, projectId, conceptId]);
-  async function api(path: string, body?: unknown, token?: string) {
-    const accessToken = token ?? accessTokenRef.current;
+  async function api(path: string, body?: unknown) {
     const isForm = body instanceof FormData;
     const res = await fetch(path, {
       method: body === undefined ? "GET" : "POST",
@@ -94,7 +94,6 @@ export default function Workspace() {
         ...(body !== undefined && !isForm
           ? { "Content-Type": "application/json" }
           : {}),
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       ...(body !== undefined
         ? { body: isForm ? body : JSON.stringify(body) }
@@ -120,50 +119,51 @@ export default function Workspace() {
       .then((d) => setConfiguration(appConfigurationSchema.parse(d)))
       .catch(() => {});
     let active = true;
-    const load = async (id: string | null, token?: string) => {
-      const current = ++generation.current;
+    const current = ++generation.current;
+    async function loadAccount() {
       setReady(false);
       setView("dashboard");
-      setUserId(id);
       setProjects([]);
       setConceptDrafts({});
       setCollectionId("");
+      setError("");
       try {
-        const data = await api("/api/projects", undefined, token || "");
+        const { user } = await accountRequest();
+        if (!active || current !== generation.current) return;
+        setUserId(user?.id || null);
+        setAccountUsername(user?.username || "");
+        const data = await api("/api/projects");
         if (active && current === generation.current)
           setProjects(data.projects);
-      } catch (e) {
+      } catch (error) {
         if (active && current === generation.current)
-          setError(e instanceof Error ? e.message : "기록을 읽지 못했습니다.");
+          setError(
+            error instanceof Error ? error.message : "기록을 읽지 못했습니다.",
+          );
       } finally {
         if (active && current === generation.current) setReady(true);
       }
-    };
-    void load(null);
-    if (supabase) {
-      let lastId: string | null = null;
-      const { data } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === "PASSWORD_RECOVERY") {
-          setPasswordRecovery(true);
-          setAuthOpen(true);
-        }
-        accessTokenRef.current = session?.access_token;
-        const id = session?.user.id || null;
-        if (id === lastId) return;
-        lastId = id;
-        void load(id, session?.access_token);
-      });
-      return () => {
-        active = false;
-        generation.current++;
-        data.subscription.unsubscribe();
-      };
     }
+    void loadAccount();
     return () => {
       active = false;
       generation.current++;
     };
+  }, [authVersion]);
+  useEffect(() => {
+    const refresh = () => setAuthVersion((version) => version + 1);
+    window.addEventListener("feynloop:account-changed", refresh);
+    const channel =
+      typeof BroadcastChannel !== "undefined"
+        ? new BroadcastChannel("feynloop-auth")
+        : null;
+    if (channel) channel.onmessage = refresh;
+    return () => {
+      window.removeEventListener("feynloop:account-changed", refresh);
+      channel?.close();
+    };
   }, []);
+
   function accept(p: Project) {
     setProjects((prev) =>
       prev.some((v) => v.id === p.id)
@@ -392,18 +392,13 @@ export default function Workspace() {
               <button
                 className="icon-button account-button"
                 disabled={busy}
-                aria-label={userId ? "로그아웃" : "계정 로그인"}
+                aria-label={userId ? "내 계정" : "계정 로그인"}
                 onClick={() => {
-                  if (userId)
-                    void run(async () => {
-                      const response = await supabase?.auth.signOut();
-                      if (response?.error) throw response.error;
-                      setNotice("로그아웃했습니다.");
-                    });
+                  if (userId) setAccountMenuOpen(true);
                   else setAuthOpen(true);
                 }}
               >
-                {userId ? <LogOut size={18} /> : <UserRound size={18} />}
+                <UserRound size={18} />
               </button>
             </div>
           </header>
@@ -605,19 +600,22 @@ export default function Workspace() {
       )}
       {authOpen && (
         <PasswordLogin
-          recovery={passwordRecovery}
-          onClose={() => {
-            setAuthOpen(false);
-            setPasswordRecovery(false);
-          }}
+          onClose={() => setAuthOpen(false)}
           onSuccess={() => {
             setAuthOpen(false);
-            setPasswordRecovery(false);
-            setNotice(
-              passwordRecovery
-                ? "비밀번호를 저장했습니다. 다음부터 비밀번호로 로그인하세요."
-                : "로그인했습니다. 내 학습 기록을 불러옵니다.",
-            );
+            setNotice("로그인했습니다. 내 학습 기록을 불러옵니다.");
+          }}
+        />
+      )}
+      {accountMenuOpen && userId && (
+        <AccountMenu
+          username={accountUsername}
+          onClose={() => setAccountMenuOpen(false)}
+          onImported={() => setAuthVersion((version) => version + 1)}
+          onLogout={async () => {
+            await accountRequest("logout");
+            setAccountMenuOpen(false);
+            setNotice("로그아웃했습니다.");
           }}
         />
       )}

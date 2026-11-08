@@ -9,8 +9,8 @@ export function GET() {
     readiness: {
       gemini: geminiConfigured(),
       authentication: Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL &&
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+          process.env.SUPABASE_SECRET_KEY,
       ),
       storage: Boolean(process.env.SUPABASE_SECRET_KEY?.trim()),
     },
