@@ -519,39 +519,6 @@ summary::-webkit-details-marker {
   font-size: 12px;
   padding: 0;
 }
-.home-footnote {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 44px;
-}
-.home-footnote p {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.9;
-}
-.home-footnote p strong {
-  color: #575752;
-  font-weight: 500;
-}
-.home-footnote > .icon-button {
-  margin-left: auto;
-  background: white;
-}
-.home-mode-settings {
-  margin-top: 28px;
-}
-.home-mode-settings > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--muted);
-  width: fit-content;
-}
-.home-mode-settings .learning-mode-choice {
-  margin-top: 16px;
-}
 .bottom-nav {
   position: fixed;
   left: 50%;
@@ -1909,13 +1876,6 @@ summary::-webkit-details-marker {
   .view-result {
     max-width: 1000px;
   }
-  .home-mode-settings .mode-options {
-    grid-template-columns: 1fr 1fr;
-  }
-  .home-mode-settings .mode-heading {
-    justify-content: flex-start;
-    gap: 20px;
-  }
 }
 @media (max-width: 760px) {
   .app-frame {
@@ -1974,12 +1934,6 @@ summary::-webkit-details-marker {
   .home-queue {
     margin-top: 48px;
     padding-top: 0;
-  }
-  .home-footnote {
-    margin-top: 28px;
-  }
-  .home-footnote p {
-    font-size: 11px;
   }
   .section-title h2 {
     font-size: 17px;

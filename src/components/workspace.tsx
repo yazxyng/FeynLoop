@@ -8,7 +8,6 @@ import {
   Loader2,
   LogOut,
   Plus,
-  Settings2,
   UserRound,
   X,
 } from "lucide-react";
@@ -26,7 +25,6 @@ import {
 import type { CardEntry } from "@/lib/presentation";
 import { documentTitle } from "@/lib/presentation";
 import StudyRoom from "./study-room";
-import LearningModeChoice from "./learning-mode";
 import PasswordLogin from "./password-login";
 import {
   HomeView,
@@ -454,23 +452,6 @@ export default function Workspace() {
                   else navigate("upload");
                 }}
               />
-              <details className="home-mode-settings" open>
-                <summary>
-                  <Settings2 size={15} />
-                  {learningMode === "demo"
-                    ? "데모로 학습 중"
-                    : "Gemini 학습 선택됨"}
-                  <ChevronDown size={15} />
-                </summary>
-                <LearningModeChoice
-                  configuration={configuration}
-                  mode={learningMode}
-                  signedIn={Boolean(userId)}
-                  busy={busy}
-                  onSelect={selectMode}
-                  onLogin={() => setAuthOpen(true)}
-                />
-              </details>
             </>
           )}
           {view === "library" && (
