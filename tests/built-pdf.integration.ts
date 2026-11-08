@@ -100,6 +100,24 @@ test(
       ),
     );
     assert.ok(!("pages" in result.project));
+    const projectPath = `/projects/${result.project.id}`;
+    const conceptPath = `${projectPath}/concepts/${result.project.concepts[0].id}`;
+    for (const path of [
+      "/",
+      "/library",
+      "/upload",
+      "/records",
+      "/profile",
+      projectPath,
+      conceptPath,
+      `${conceptPath}/study`,
+      `${conceptPath}/result`,
+    ]) {
+      const page = await fetch(base + path);
+      assert.equal(page.status, 200, path);
+      assert.ok((await page.text()).includes("FeynLoop"), path);
+    }
+    assert.equal((await fetch(base + "/unknown-screen")).status, 404);
     assert.ok(
       !JSON.stringify(result).includes(
         "recalling information without looking at the source",

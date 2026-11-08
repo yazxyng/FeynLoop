@@ -535,7 +535,7 @@ summary::-webkit-details-marker {
   z-index: 30;
   box-shadow: 0 8px 25px #0000000a;
 }
-.bottom-nav > button {
+.bottom-nav > :is(button, a) {
   flex: 1;
   min-width: 0;
   height: 50px;
@@ -549,18 +549,18 @@ summary::-webkit-details-marker {
   font-size: 13px;
   font-weight: 650;
 }
-.bottom-nav > button.active {
+.bottom-nav > :is(button, a).active {
   flex: 1.5;
   background: #f6f6f1;
   color: #141416;
 }
-.bottom-nav > button:not(.active) > span {
+.bottom-nav > :is(button, a):not(.active) > span {
   display: none;
 }
-.bottom-nav > button.active > span {
+.bottom-nav > :is(button, a).active > span {
   display: inline;
 }
-.bottom-nav button:focus-visible {
+.bottom-nav :is(button, a):focus-visible {
   outline-color: var(--accent);
   outline-offset: 1px;
 }
@@ -1875,7 +1875,7 @@ summary::-webkit-details-marker {
   margin-bottom: 16px;
 }
 @media (min-width: 850px) {
-  .bottom-nav > button:not(.active) > span {
+  .bottom-nav > :is(button, a):not(.active) > span {
     display: inline;
   }
   .bottom-nav {
@@ -2216,7 +2216,7 @@ summary::-webkit-details-marker {
   .app-header {
     gap: 8px;
   }
-  .bottom-nav > button {
+  .bottom-nav > :is(button, a) {
     padding-left: 12px;
     padding-right: 12px;
   }
@@ -3346,7 +3346,7 @@ body:has(.dark-mode) {
   outline: 3px solid #a5bc3c;
   outline-offset: 4px;
 }
-.bottom-nav > button > span {
+.bottom-nav > :is(button, a) > span {
   white-space: nowrap;
 }
 @media (min-width: 850px) {
@@ -3355,17 +3355,17 @@ body:has(.dark-mode) {
   }
 }
 @media (max-width: 760px) {
-  .bottom-nav > button {
+  .bottom-nav > :is(button, a) {
     padding-inline: 8px;
     gap: 5px;
     font-size: 12px;
   }
-  .bottom-nav > button:last-child.active {
+  .bottom-nav > :is(button, a):last-child.active {
     flex: 2.7;
   }
 }
 @media (max-width: 360px) {
-  .bottom-nav > button {
+  .bottom-nav > :is(button, a) {
     font-size: 11px;
   }
 }
@@ -3431,3 +3431,12 @@ body:has(.dark-mode) {
   .source-switch { width: 100%; }
   .source-switch button { flex: 1; padding: 11px; }
 }
+
+.route-state { padding: 70px 24px; text-align: center; color: #757b6c; }
+.route-state h1 { font-size: 22px; color: #20231b; margin: 20px 0 12px; }
+.route-state p { line-height: 1.8; font-size: 14px; }
+.route-state button { border-radius: 999px; padding: 14px 22px; margin: 16px 5px 0; background: #d9f654; color: #151712; font-size: 13px; font-weight: 600; }
+.dark-mode .route-state { color: #aaafa1; }
+.dark-mode .route-state h1 { color: #f2f3ed; }
+.bottom-nav a { text-decoration: none; }
+.bottom-nav a[aria-disabled="true"] { opacity: .6; cursor: default; }

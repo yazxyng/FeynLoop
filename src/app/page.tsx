@@ -1,4 +1,4 @@
-import Workspace from "@/components/workspace";
+import WorkspaceRoutePage from "@/components/workspace-route-page";
 export default function Page() {
-  return <Workspace />;
+  return <WorkspaceRoutePage route={{ view: "dashboard" }} />;
 }

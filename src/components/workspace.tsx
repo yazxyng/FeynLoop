@@ -1,5 +1,11 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useWorkspace } from "./workspace-provider";
+import {
+  workspacePath,
+  type View,
+  type WorkspaceRoute,
+} from "@/lib/workspace-routes";
 import {
   ChartNoAxesColumn,
   ChevronDown,
@@ -12,18 +18,7 @@ import {
 import { accountRequest } from "@/lib/account-client";
 import MyPage from "./screens/my-page";
 import ProcessingDialog from "./processing-dialog";
-import { workspaceRequest as api } from "@/lib/workspace-request";
-import { draftRecoveryKey, recoverDraft } from "@/lib/draft-recovery";
-import {
-  newStudy,
-  appConfigurationSchema,
-  type AppConfiguration,
-  type LearningMode,
-  type Concept,
-  type Project,
-  type Study,
-} from "@/lib/types";
-import type { CardEntry } from "@/lib/presentation";
+import { draftRecoveryKey } from "@/lib/draft-recovery";
 import { documentTitle } from "@/lib/presentation";
 import StudyRoom from "./study-room";
 import PasswordLogin from "./password-login";
@@ -34,353 +29,59 @@ import {
   RecordsView,
 } from "./screens/collection-views";
 import { ImportView, ConceptsView, ResultView } from "./screens/project-views";
-type View =
-  | "dashboard"
-  | "library"
-  | "upload"
-  | "concepts"
-  | "detail"
-  | "study"
-  | "result"
-  | "records"
-  | "profile";
-export default function Workspace() {
-  const [projects, setProjects] = useState<Project[]>([]),
-    [ready, setReady] = useState(false),
-    [view, setView] = useState<View>("dashboard"),
-    [projectId, setProjectId] = useState(""),
-    [conceptId, setConceptId] = useState(""),
-    [busy, setBusy] = useState(false),
-    [busyPresentation, setBusyPresentation] = useState<
-      "dialog" | "reply" | "inline"
-    >("dialog"),
-    [pendingMessage, setPendingMessage] = useState<string | null>(null),
-    [error, setError] = useState(""),
-    [notice, setNotice] = useState(""),
-    [query, setQuery] = useState(""),
-    [collectionId, setCollectionId] = useState(""),
-    [conceptDrafts, setConceptDrafts] = useState<
-      Record<string, { title: string; description: string }>
-    >({}),
-    [userId, setUserId] = useState<string | null>(null),
-    [configuration, setConfiguration] = useState<AppConfiguration | null>(null),
-    [learningMode, setLearningMode] = useState<LearningMode>("demo"),
-    [operation, setOperation] = useState(
-      "처리 중입니다. 잠시만 기다려 주세요.",
-    ),
-    [authOpen, setAuthOpen] = useState(false),
-    [authVersion, setAuthVersion] = useState(0);
-  const uploadRef = useRef<HTMLInputElement>(null),
-    running = useRef(false),
-    generation = useRef(0);
-  const canStart =
-    !busy &&
-    ready &&
-    (learningMode === "demo"
-      ? Boolean(!configuration || configuration.demoAllowed || userId)
-      : Boolean(
-          userId &&
-          configuration &&
-          Object.values(configuration.readiness).every(Boolean),
-        ));
-  const project = projects.find((p) => p.id === projectId),
-    concept = project?.concepts.find((c) => c.id === conceptId),
-    study = project?.studies[conceptId] || newStudy(conceptId);
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [view, projectId, conceptId]);
-  function selectMode(mode: LearningMode) {
-    setLearningMode(mode);
-    try {
-      localStorage.setItem("feynloop:learning-mode", mode);
-    } catch {}
-  }
-  useEffect(() => {
-    try {
-      if (localStorage.getItem("feynloop:learning-mode") === "live")
-        setLearningMode("live");
-    } catch {}
-    fetch("/api/config")
-      .then((r) => r.json())
-      .then((d) => setConfiguration(appConfigurationSchema.parse(d)))
-      .catch(() => {});
-    let active = true;
-    const current = ++generation.current;
-    async function loadAccount() {
-      setReady(false);
-      setView((previous) => (previous === "profile" ? "profile" : "dashboard"));
-      setProjects([]);
-      setConceptDrafts({});
-      setCollectionId("");
-      setError("");
-      try {
-        const { user } = await accountRequest();
-        if (!active || current !== generation.current) return;
-        setUserId(user?.id || null);
-        const data = await api("/api/projects");
-        if (active && current === generation.current)
-          setProjects(data.projects);
-      } catch (error) {
-        if (active && current === generation.current)
-          setError(
-            error instanceof Error ? error.message : "기록을 읽지 못했습니다.",
-          );
-      } finally {
-        if (active && current === generation.current) setReady(true);
-      }
-    }
-    void loadAccount();
-    return () => {
-      active = false;
-      generation.current++;
-    };
-  }, [authVersion]);
-  useEffect(() => {
-    const refresh = () => setAuthVersion((version) => version + 1);
-    window.addEventListener("feynloop:account-changed", refresh);
-    const channel =
-      typeof BroadcastChannel !== "undefined"
-        ? new BroadcastChannel("feynloop-auth")
-        : null;
-    if (channel) channel.onmessage = refresh;
-    return () => {
-      window.removeEventListener("feynloop:account-changed", refresh);
-      channel?.close();
-    };
-  }, []);
-
-  function accept(p: Project) {
-    setProjects((prev) =>
-      prev.some((v) => v.id === p.id)
-        ? prev.map((v) => (v.id === p.id ? p : v))
-        : [p, ...prev],
-    );
-  }
-  async function command(
-    action: string,
-    extra: Record<string, unknown> = {},
-    p = project,
-    cId = conceptId,
-  ) {
-    if (!p) throw new Error("프로젝트를 선택해 주세요.");
-    const current = generation.current;
-    const data = await api(`/api/projects/${p.id}`, {
-      action,
-      conceptId: cId,
-      version: p.version,
-      requestId: crypto.randomUUID(),
-      ...extra,
-    });
-    if (current !== generation.current)
-      throw new Error("계정이 변경되었습니다. 다시 시도해 주세요.");
-    accept(data.project);
-    return data.project as Project;
-  }
-  function patchStudy(next: Study) {
-    if (!project) return;
-    accept({ ...project, studies: { ...project.studies, [conceptId]: next } });
-  }
-  async function run(
-    task: () => Promise<void>,
-    label = "처리 중입니다. 잠시만 기다려 주세요.",
-    presentation: "dialog" | "reply" | "inline" = view === "study"
-      ? "inline"
-      : "dialog",
-  ) {
-    if (running.current) return;
-    running.current = true;
-    setOperation(label);
-    setBusyPresentation(presentation);
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      await task();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "작업을 완료하지 못했습니다.");
-    } finally {
-      running.current = false;
-      setBusy(false);
-    }
-  }
-  function open(p: Project) {
-    setProjectId(p.id);
-    setView("concepts");
-  }
-  async function upload(file: File) {
-    await run(
-      async () => {
-        const form = new FormData();
-        if (!canStart)
-          throw new Error("선택한 학습 방식의 설정과 로그인을 확인해 주세요.");
-        if (
-          !file.name.toLowerCase().endsWith(".pdf") ||
-          file.size === 0 ||
-          file.size > 20 * 1024 * 1024
-        )
-          throw new Error("20MB 이하의 PDF 파일을 선택해 주세요.");
-        form.set("file", file);
-        form.set("mode", learningMode);
-        const { project: p } = await api("/api/projects", form);
-        accept(p);
-        open(p);
-        setNotice(
-          p.mode === "demo"
-            ? "데모 개념 후보입니다. 학습 전에 이름을 확인해 주세요."
-            : "분석을 마쳤습니다. 학습할 개념을 선택해 주세요.",
-        );
-      },
-      learningMode === "live"
-        ? "Gemini가 PDF에서 학습 개념을 분석하고 있어요."
-        : "PDF를 읽고 데모 학습을 준비하고 있어요.",
-    );
-  }
-  async function importText(title: string, text: string) {
-    await run(
-      async () => {
-        if (!canStart)
-          throw new Error("학습 방식과 로그인을 먼저 확인해 주세요.");
-        const { project: created } = await api("/api/projects", {
-          source: "text",
-          title: title.trim() || "텍스트 학습",
-          text,
-          mode: learningMode,
-        });
-        accept(created);
-        open(created);
-        setNotice(
-          created.mode === "live"
-            ? "텍스트 분석을 마쳤어요. 학습할 개념을 선택해 주세요."
-            : "텍스트로 만든 데모 카드예요. 개념 이름을 확인해 주세요.",
-        );
-      },
-      learningMode === "live"
-        ? "Gemini가 텍스트에서 학습 개념을 찾고 있어요."
-        : "텍스트로 데모 학습을 준비하고 있어요.",
-    );
-  }
-  async function persistEdits(selected: Project) {
-    let latest = selected;
-    for (const c of selected.concepts) {
-      const draft = conceptDrafts[`${selected.id}:${c.id}`];
-      if (draft && !selected.studies[c.id]) {
-        if (!draft.title.trim()) throw new Error("개념 이름을 입력해 주세요.");
-        latest = await command("editConcept", draft, latest, c.id);
-        setConceptDrafts((prev) => {
-          const next = { ...prev };
-          delete next[`${selected.id}:${c.id}`];
-          return next;
-        });
-      }
-    }
-    return latest;
-  }
-  function start(c: Concept, selectedProject = project) {
-    void run(async () => {
-      if (!selectedProject) throw new Error("학습할 문서를 선택해 주세요.");
-      const prepared = await persistEdits(selectedProject);
-      const p = await command("start", {}, prepared, c.id);
-      const session = p.studies[c.id];
-      if (!["done", "review"].includes(session.phase)) {
-        const key = draftRecoveryKey(userId || "guest", p.id, session);
-        const draft = recoverDraft(sessionStorage, key, session.draft);
-        if (draft !== session.draft) {
-          accept({
-            ...p,
-            studies: { ...p.studies, [c.id]: { ...session, draft } },
-          });
-          setNotice("이 브라우저에 남아 있던 작성 중 설명을 복구했어요.");
-        }
-      }
-      setProjectId(p.id);
-      setConceptId(c.id);
-      setView(p.studies[c.id].phase === "done" ? "result" : "study");
-    });
-  }
-  async function editConcept(c: Concept) {
-    await command(
-      "editConcept",
-      { title: c.title, description: c.description },
-      project,
-      c.id,
-    );
-    setConceptDrafts((prev) => {
-      const next = { ...prev };
-      delete next[`${project?.id}:${c.id}`];
-      return next;
-    });
-  }
-  function detail(entry: CardEntry) {
-    setProjectId(entry.project.id);
-    setConceptId(entry.concept.id);
-    setView("detail");
-  }
-  async function sampleProject() {
-    await run(
-      async () => {
-        if (!canStart)
-          throw new Error("학습 방식과 로그인을 먼저 확인해 주세요.");
-        const { project: p } = await api("/api/projects", {
-          sample: true,
-          mode: learningMode,
-        });
-        accept(p);
-        open(p);
-        setNotice(
-          p.mode === "live"
-            ? "Gemini가 핵심 카드를 만들었어요."
-            : "실제 AI 호출 없는 데모 카드입니다.",
-        );
-      },
-      learningMode === "live"
-        ? "Gemini가 예제에서 핵심 카드를 찾고 있어요."
-        : "예제 카드를 준비하고 있어요.",
-    );
-  }
-  async function submit() {
-    if (!study.draft.trim() || running.current) return;
-    await run(
-      async () => {
-        setPendingMessage(study.draft);
-        try {
-          const key =
-            project && draftRecoveryKey(userId || "guest", project.id, study);
-          const p = await command("submit", { text: study.draft });
-          try {
-            if (key) sessionStorage.removeItem(key);
-          } catch {}
-          const s = p.studies[conceptId];
-          if (s.phase === "done") setView("result");
-        } finally {
-          setPendingMessage(null);
-        }
-      },
-      project?.mode === "live"
-        ? study.phase === "rewrite"
-          ? "Gemini가 마지막 설명을 확인하고 학습 결과를 만들고 있어요."
-          : "Gemini가 설명을 읽고 다음 질문을 만들고 있어요."
-        : "데모 답변을 준비하고 있어요.",
-      "reply",
-    );
-  }
-  const collection = collectionId
-    ? projects.filter((p) => p.id === collectionId)
-    : projects;
-  const dark = view === "study" || view === "result";
-  function navigate(next: View) {
-    if (!busy) {
-      setError("");
-      setNotice("");
-      setView(next);
-    }
-  }
-  function onBackFromStudy() {
-    void run(async () => {
-      if (study.phase !== "review")
-        await command("draft", { text: study.draft });
-      setView("concepts");
-    });
-  }
+export default function Workspace({ route }: { route: WorkspaceRoute }) {
+  const {
+    pathname,
+    view,
+    dark,
+    project,
+    concept,
+    study,
+    projects,
+    collection,
+    ready,
+    busy,
+    query,
+    setQuery,
+    collectionId,
+    setCollectionId,
+    userId,
+    configuration,
+    learningMode,
+    canStart,
+    conceptDrafts,
+    setConceptDrafts,
+    navigate,
+    start,
+    detail,
+    sampleProject,
+    upload,
+    importText,
+    run,
+    editConcept,
+    command,
+    patchStudy,
+    submit,
+    onBackFromStudy,
+    operation,
+    busyPresentation,
+    error,
+    notice,
+    setError,
+    setNotice,
+    authOpen,
+    setAuthOpen,
+    setAuthVersion,
+    uploadRef,
+    pendingMessage,
+    activeOperation,
+    screenLoading,
+    routeUnavailable,
+    routeError,
+    retryRoute,
+    selectMode,
+  } = useWorkspace();
+  if (workspacePath(route) !== pathname) return null;
   return (
     <div className={`app-shell ${dark ? "dark-mode" : ""}`}>
       <main className={`app-frame view-${view}`}>
@@ -457,6 +158,63 @@ export default function Workspace() {
           }}
         />
         <div className="page-content">
+          {screenLoading && (
+            <section className="route-state" role="status">
+              <span className="loop-symbol" />
+              <h1>학습 기록을 불러오고 있어요</h1>
+              <p>잠시만 기다려 주세요.</p>
+            </section>
+          )}
+          {routeUnavailable && (
+            <section className="route-state">
+              <h1>학습 자료를 열 수 없어요</h1>
+              <p>
+                {routeError || "자료가 없거나 현재 계정에서 접근할 수 없어요."}
+              </p>
+              <div>
+                <button onClick={retryRoute}>다시 불러오기</button>
+                <button onClick={() => navigate("library")}>
+                  카드함으로 가기
+                </button>
+              </div>
+            </section>
+          )}
+          {view === "study" &&
+            ready &&
+            !screenLoading &&
+            !routeUnavailable &&
+            project &&
+            concept &&
+            !project.studies[concept.id] && (
+              <section className="route-state">
+                <h1>{concept.title}</h1>
+                <p>
+                  아직 시작하지 않은 개념이에요. 준비되면 설명을 시작해 보세요.
+                </p>
+                <button disabled={busy} onClick={() => start(concept)}>
+                  설명 시작하기
+                </button>
+                <button onClick={() => navigate("concepts")}>
+                  개념 목록으로 가기
+                </button>
+              </section>
+            )}
+          {view === "result" &&
+            ready &&
+            !screenLoading &&
+            !routeUnavailable &&
+            project &&
+            concept &&
+            study.phase !== "done" && (
+              <section className="route-state">
+                <h1>아직 완료된 학습 결과가 없어요</h1>
+                <p>설명과 마지막 정리를 마치면 결과를 확인할 수 있어요.</p>
+                <button disabled={busy} onClick={() => start(concept)}>
+                  학습 이어가기
+                </button>
+              </section>
+            )}
+
           {view === "dashboard" && (
             <>
               <HomeView
@@ -500,7 +258,7 @@ export default function Workspace() {
               onBack={() => navigate("dashboard")}
             />
           )}
-          {view === "concepts" && project && (
+          {view === "concepts" && project && !routeUnavailable && (
             <ConceptsView
               project={project}
               drafts={conceptDrafts}
@@ -516,7 +274,7 @@ export default function Workspace() {
               onBack={() => navigate("library")}
             />
           )}
-          {view === "detail" && project && concept && (
+          {view === "detail" && project && concept && !routeUnavailable && (
             <CardDetailView
               project={project}
               concept={concept}
@@ -527,68 +285,80 @@ export default function Workspace() {
               onResult={() => start(concept)}
             />
           )}
-          {view === "study" && project && concept && (
-            <>
-              <StudyRoom
+          {view === "study" &&
+            project &&
+            concept &&
+            project.studies[concept.id] &&
+            !routeUnavailable && (
+              <>
+                <StudyRoom
+                  project={project}
+                  concept={concept}
+                  study={study}
+                  busy={busy}
+                  typing={activeOperation && busyPresentation === "reply"}
+                  pendingMessage={pendingMessage}
+                  statusMessage={
+                    activeOperation
+                      ? operation
+                      : "이전 요청을 마무리하고 있어요."
+                  }
+                  onDraft={(text) => {
+                    patchStudy({ ...study, draft: text });
+                    try {
+                      sessionStorage.setItem(
+                        draftRecoveryKey(userId || "guest", project.id, study),
+                        text,
+                      );
+                    } catch {}
+                  }}
+                  onSubmit={() => void submit()}
+                  onAction={(action, extra) =>
+                    void run(
+                      async () => {
+                        await command(action, {
+                          ...extra,
+                          ...(action === "hint" ? { text: study.draft } : {}),
+                        });
+                      },
+                      action === "hint"
+                        ? "힌트를 준비하고 있어요."
+                        : "대화를 업데이트하고 있어요.",
+                      action === "hint" ? "reply" : "inline",
+                    )
+                  }
+                  onSave={() =>
+                    void run(async () => {
+                      await command("draft", { text: study.draft });
+                      setNotice(
+                        "설명을 저장했어요. 여기서 다시 이어갈 수 있어요.",
+                      );
+                    })
+                  }
+                  onBack={onBackFromStudy}
+                />
+              </>
+            )}
+          {view === "result" &&
+            project &&
+            concept &&
+            study.phase === "done" &&
+            !routeUnavailable && (
+              <ResultView
                 project={project}
                 concept={concept}
                 study={study}
                 busy={busy}
-                typing={busy && busyPresentation === "reply"}
-                pendingMessage={pendingMessage}
-                statusMessage={operation}
-                onDraft={(text) => {
-                  patchStudy({ ...study, draft: text });
-                  try {
-                    sessionStorage.setItem(
-                      draftRecoveryKey(userId || "guest", project.id, study),
-                      text,
-                    );
-                  } catch {}
-                }}
-                onSubmit={() => void submit()}
-                onAction={(action, extra) =>
-                  void run(
-                    async () => {
-                      await command(action, {
-                        ...extra,
-                        ...(action === "hint" ? { text: study.draft } : {}),
-                      });
-                    },
-                    action === "hint"
-                      ? "힌트를 준비하고 있어요."
-                      : "대화를 업데이트하고 있어요.",
-                    action === "hint" ? "reply" : "inline",
-                  )
-                }
-                onSave={() =>
+                onClose={() => navigate("dashboard")}
+                onNext={() => navigate("concepts")}
+                onRestart={() =>
                   void run(async () => {
-                    await command("draft", { text: study.draft });
-                    setNotice(
-                      "설명을 저장했어요. 여기서 다시 이어갈 수 있어요.",
-                    );
+                    await command("restart");
+                    navigate("study");
                   })
                 }
-                onBack={onBackFromStudy}
               />
-            </>
-          )}
-          {view === "result" && project && concept && (
-            <ResultView
-              project={project}
-              concept={concept}
-              study={study}
-              busy={busy}
-              onClose={() => navigate("dashboard")}
-              onNext={() => navigate("concepts")}
-              onRestart={() =>
-                void run(async () => {
-                  await command("restart");
-                  setView("study");
-                })
-              }
-            />
-          )}
+            )}
           {view === "profile" && (
             <MyPage
               key={userId || "guest"}
@@ -625,22 +395,29 @@ export default function Workspace() {
               (item.view === "library" &&
                 ["concepts", "detail"].includes(view));
             return (
-              <button
+              <Link
+                href={workspacePath({ view: item.view })}
                 key={item.view}
                 className={selected ? "active" : ""}
                 aria-current={selected ? "page" : undefined}
                 aria-label={item.label}
-                disabled={busy}
-                onClick={() => navigate(item.view)}
+                aria-disabled={busy || undefined}
+                onClick={(event) => {
+                  if (busy) event.preventDefault();
+                  else {
+                    setError("");
+                    setNotice("");
+                  }
+                }}
               >
                 <item.icon size={21} />
                 <span>{item.label}</span>
-              </button>
+              </Link>
             );
           })}
         </nav>
       )}
-      {busy && busyPresentation === "dialog" && (
+      {activeOperation && busyPresentation === "dialog" && (
         <ProcessingDialog message={operation} />
       )}
       {authOpen && (

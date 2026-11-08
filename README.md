@@ -269,3 +269,28 @@ AI 평가의 근거 비교에서는 유니코드 NFC와 공백·줄바꿈 차이
 텍스트 자료의 근거는 ‘텍스트 원문’으로 표시합니다. 채팅 메시지를 전송하면 입력창은 기본 한 줄 높이로 돌아오며, 요청이 실패하면 작성한 내용과 높이를 복원합니다.
 
 채팅 평가 응답은 `src/lib/server/assessment-response.ts`에서 항목별로 정리합니다. 누락·null 배열은 빈 값으로 처리하고, 개수나 길이가 잘못된 보조 항목은 제외하거나 안전한 힌트로 보완합니다. 인용문이나 판단 문장을 잘라서 맞추거나 근거를 만들어 채우지 않습니다. 검증 가능한 질문은 그대로 유지하며, 응답 전체가 JSON이 아니거나 알려진 평가 구조가 아니면 기존처럼 오류로 처리합니다. 진단 로그에는 원문·답변·키 없이 실패 단계와 스키마 경로만 남깁니다.
+
+### 화면 주소와 이동
+
+화면은 Next.js App Router의 실제 페이지 경로로 이동합니다. `react-router-dom`을 별도로 설치하지 않습니다. 기본 구조는 [Next.js 공식 라우팅 안내](https://nextjs.org/docs/app)에 따릅니다.
+
+| 화면 | 주소 |
+| --- | --- |
+| 홈 | `/` |
+| 카드함 | `/library` |
+| 자료 등록 | `/upload` |
+| 학습 기록 | `/records` |
+| 마이페이지 | `/profile` |
+| 자료의 개념 목록 | `/projects/[projectId]` |
+| 개념 상세 | `/projects/[projectId]/concepts/[conceptId]` |
+| 학습실 | `/projects/[projectId]/concepts/[conceptId]/study` |
+| 학습 결과 | `/projects/[projectId]/concepts/[conceptId]/result` |
+
+- 경로 정의: `src/lib/workspace-routes.ts`
+- 페이지 진입점: `src/app/(workspace)` 및 `src/app/page.tsx`
+- 공통 학습 상태와 요청: `src/components/workspace-provider.tsx`
+- 화면 조합: `src/components/workspace.tsx`
+
+공통 상태는 루트 레이아웃에서 유지합니다. 주소 직접 입력·뒤로가기·앞으로가기·새로고침을 지원하며, 현재 계정의 기록을 다시 읽습니다. 작성 중 설명은 계정·개념·학습 시도·질문 단계별 초안으로 복원합니다. 브라우저 저장소를 사용할 수 없으면 같은 탭에서 이동하는 동안 메모리 초안을 유지하되, 새로고침 전에는 대화 저장을 사용해야 합니다.
+
+학습실 URL을 여는 것만으로 학습을 시작하거나 Gemini를 호출하지 않습니다. 아직 시작하지 않은 개념은 시작 버튼을, 완료되지 않은 결과 주소는 학습 이어가기 안내를 표시합니다. 없는 자료나 접근할 수 없는 자료는 별도 안내 화면을 보여 줍니다. 학습 완료 시 학습실 주소를 결과 주소로 교체합니다.
