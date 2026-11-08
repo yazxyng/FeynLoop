@@ -10,18 +10,12 @@ import { demoFeedback } from "./demo";
 import { ApiError } from "./errors";
 import { generateGemini } from "./gemini";
 import { evaluationInstruction } from "./learning-prompts";
+import {
+  assessmentResponseSchema,
+  normalizeAssessmentResponse,
+} from "./assessment-response";
 const conceptsResponseSchema = z.object({
   concepts: z.array(conceptSchema).min(1).max(10),
-});
-const assessmentResponseSchema = feedbackSchema.extend({
-  hints: z.array(z.string().min(1).max(1000)).length(2),
-  questionGrounding: z
-    .object({
-      answerQuote: z.string().max(120),
-      page: z.number().int().positive(),
-      quote: z.string().min(1).max(650),
-    })
-    .nullable(),
 });
 export async function extractConcepts(
   pages: SourcePage[],
@@ -194,6 +188,7 @@ export async function evaluate(
       final,
     },
     assessmentResponseSchema,
+    normalizeAssessmentResponse,
   );
   const { feedback } = groundAssessment(feedbackSchema.parse(parsed), pages);
   let hints = z

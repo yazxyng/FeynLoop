@@ -112,6 +112,24 @@ test("PDF용 중첩 스키마의 길이·정수·배열 제한은 전송에서 �
   }
 });
 
+test("전체 JSON 코드블록 포장만 제거하고 안의 데이터는 그대로 검증한다", async (t) => {
+  environment(t);
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({
+      candidates: [
+        {
+          finishReason: "STOP",
+          content: { parts: [{ text: '```json\n{"answer":"완료"}\n```' }] },
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(await generateGemini("지시", {}, resultSchema), {
+    answer: "완료",
+    count: 1,
+  });
+});
+
 test("Gemini 헤더 수신 후 본문 읽기가 중단돼도 시간 초과로 안내한다", async (t) => {
   environment(t);
   t.mock.method(globalThis, "fetch", async () => ({
@@ -488,6 +506,50 @@ test("반복 질문·없는 문서 근거·답변에 없는 표현은 그대로 
     false,
   );
   assert.equal(finished.feedback.question, "");
+});
+
+test("채팅 평가의 보조 항목이 잘못돼도 근거 있는 맞춤 질문을 유지한다", async (t) => {
+  environment(t);
+  const answer = "책을 덮고 떠올려 봤어";
+  const question = "바로 떠오르지 않을 때는 어떻게 해 보고 싶어?";
+  const fetch = t.mock.method(globalThis, "fetch", async () =>
+    success({
+      question,
+      understood: [],
+      errors: null,
+      missing: null,
+      improve: [],
+      unverified: [],
+      hint: null,
+      hints: null,
+      evidence: [
+        {
+          kind: "understood",
+          claim: "잘못된 보조 근거",
+          page: 1,
+          quote: "가".repeat(651),
+        },
+      ],
+      questionGrounding: {
+        answerQuote: "책을 덮고",
+        page: 1,
+        quote: sample.pages[0].text.slice(0, 20),
+      },
+    }),
+  );
+  const result = await evaluate(
+    sample.pages,
+    sample.concepts[0],
+    newStudy(sample.concepts[0].id),
+    answer,
+    true,
+    false,
+  );
+  assert.equal(result.feedback.question, question);
+  assert.equal(result.hints.length, 2);
+  assert.deepEqual(result.feedback.evidence, []);
+  assert.ok(result.feedback.unverified.some((item) => item.includes("미확인")));
+  assert.equal(fetch.mock.callCount(), 1);
 });
 
 test("짧은 PDF의 소수 개념은 허용하지만 빈 결과·10개 초과·없는 페이지는 거부한다", async (t) => {

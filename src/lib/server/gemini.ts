@@ -56,6 +56,7 @@ export async function generateGemini<T extends z.ZodType>(
   instruction: string,
   input: unknown,
   schema: T,
+  normalize?: (value: unknown) => unknown,
 ): Promise<z.infer<T>> {
   const key = process.env.GEMINI_API_KEY?.trim();
   if (!key)
@@ -202,7 +203,11 @@ export async function generateGemini<T extends z.ZodType>(
         502,
         "Gemini 응답이 비어 있습니다. 다시 시도해 주세요.",
       );
-    return schema.parse(JSON.parse(text));
+    // JSON 코드블록만 감싼 경우에는 내용 자체를 바꾸지 않고 감싼 표시만 제거합니다.
+    const trimmed = text.trim();
+    const wrapped = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i.exec(trimmed);
+    const value: unknown = JSON.parse(wrapped ? wrapped[1].trim() : trimmed);
+    return schema.parse(normalize ? normalize(value) : value);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (
@@ -213,6 +218,27 @@ export async function generateGemini<T extends z.ZodType>(
         504,
         "Gemini 응답을 끝까지 받지 못했습니다. 잠시 후 다시 시도해 주세요.",
       );
+    // 실제 응답·원문·키는 기록하지 않습니다. 실패한 단계와 스키마 경로만 남깁니다.
+    console.warn(
+      "Gemini response validation failed",
+      error instanceof z.ZodError
+        ? {
+            stage: "schema",
+            issues: error.issues
+              .slice(0, 8)
+              .map((issue) => ({
+                code: issue.code,
+                path: issue.path
+                  .filter(
+                    (part) =>
+                      typeof part === "number" ||
+                      /^[a-zA-Z_]+$/.test(String(part)),
+                  )
+                  .join("."),
+              })),
+          }
+        : { stage: error instanceof SyntaxError ? "json" : "response" },
+    );
     throw new ApiError(
       502,
       "Gemini 응답 형식이 올바르지 않습니다. 설명을 유지한 채 다시 시도해 주세요.",
