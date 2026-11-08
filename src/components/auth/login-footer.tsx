@@ -23,7 +23,7 @@ export default function LoginFooter({
             className="login-link"
             type="button"
             disabled={isBusy}
-            onClick={() => onChangeStep("reset")}
+            onClick={() => onChangeStep("recover")}
           >
             {LOGIN_LINKS.reset}
           </button>
@@ -37,7 +37,7 @@ export default function LoginFooter({
           </button>
         </div>
       )}
-      {step !== "login" && step !== "update" && (
+      {step !== "login" && (
         <button
           className="login-link"
           type="button"

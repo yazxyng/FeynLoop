@@ -11,8 +11,9 @@ function report(name, ok, help = "") {
   console.log(`${ok ? "✓" : "✗"} ${name}${ok || !help ? "" : ` — ${help}`}`);
   if (!ok) failed = true;
 }
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-const publicKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+const url =
+  process.env.SUPABASE_URL?.trim() ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const secret = process.env.SUPABASE_SECRET_KEY?.trim();
 report(
   "Gemini 키 설정",
@@ -24,10 +25,10 @@ console.log(
 );
 report(
   "Supabase 환경변수",
-  Boolean(url && publicKey && secret),
-  "공개 URL·공개 키·서버 비밀 키가 필요합니다.",
+  Boolean(url && secret),
+  "Supabase URL과 서버 비밀 키가 필요합니다. 공개 인증 키는 이전 기록 이관에만 사용합니다.",
 );
-if (url && publicKey && secret) {
+if (url && secret) {
   try {
     const options = {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -37,28 +38,18 @@ if (url && publicKey && secret) {
       },
     };
     const client = createClient(url, secret, options);
-    const auth = await fetch(new URL("/auth/v1/settings", url), {
-      headers: { apikey: publicKey },
-      signal: AbortSignal.timeout(10000),
-    });
-    const settings = auth.ok ? await auth.json() : null;
-    report(
-      "이메일 로그인 연결",
-      Boolean(settings?.external?.email),
-      "Supabase 이메일 인증 활성화 및 공개 키를 확인해 주세요.",
-    );
     for (const [table, columns] of [
-      ["feynloop_projects", "id,version,file_path"],
-      ["feynloop_sources", "project_id,pages"],
+      ["feynloop_accounts", "id,username,nickname,plan_preference"],
+      ["feynloop_sessions", "token_hash,account_id"],
+      ["feynloop_auth_limits", "key,attempts"],
+      ["feynloop_account_projects", "id,version,file_path"],
+      ["feynloop_account_sources", "project_id,pages"],
     ]) {
-      const { error } = await client
-        .from(table)
-        .select(columns, { head: true })
-        .limit(0);
+      const { error } = await client.from(table).select(columns).limit(0);
       report(
         `${table} 접근`,
         !error,
-        "서버 키 및 supabase/migrations/20261104_recall_learning.sql 실행 여부를 확인해 주세요.",
+        "서버 키 및 supabase/setup-accounts.sql 실행 여부를 확인해 주세요.",
       );
     }
     const bucket = await client.storage.getBucket("pdfs");
@@ -73,11 +64,20 @@ if (url && publicKey && secret) {
       signal: AbortSignal.timeout(10000),
     });
     const schema = response.ok ? await response.json() : null;
-    report(
-      "프로젝트 생성 함수",
-      Boolean(schema?.paths?.["/rpc/create_feynloop_project"]),
-      "v2 마이그레이션을 실행해 주세요.",
-    );
+    for (const name of [
+      "feynloop_auth_attempt",
+      "feynloop_register_account",
+      "feynloop_recover_account",
+      "create_feynloop_account_project",
+      "feynloop_import_legacy",
+      "feynloop_change_password",
+    ]) {
+      report(
+        name,
+        Boolean(schema?.paths?.["/rpc/" + name]),
+        "supabase/setup-accounts.sql을 실행해 주세요.",
+      );
+    }
   } catch {
     report(
       "Supabase 연결 검사",

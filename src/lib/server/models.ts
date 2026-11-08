@@ -7,6 +7,7 @@ export type PrivateStudy = Study & {
   archives?: PrivateStudy[];
 };
 export type PrivateProject = Omit<Project, "studies"> & {
+  activity?: Record<string, number>;
   studies: Record<string, PrivateStudy>;
   receipts: { id: string; fingerprint: string }[];
 };

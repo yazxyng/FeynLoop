@@ -18,6 +18,7 @@ import type { Identity } from "./http";
 import { evaluate } from "./learning-ai";
 import { ApiError } from "./errors";
 import { loadProject, updateProject, withProjectLock } from "./store";
+import { learningDay } from "../activity";
 export const commandSchema = z
   .object({
     requestId: z.string().uuid(),
@@ -276,6 +277,13 @@ export async function execute(
         "다른 화면에서 학습 기록이 변경됐습니다. 새로고침 후 다시 시도해 주세요.",
       );
     const next = await applyCommand(record, command);
+    if (command.action === "submit") {
+      const day = learningDay();
+      next.activity = {
+        ...next.activity,
+        [day]: (next.activity?.[day] || 0) + 1,
+      };
+    }
     next.version = record.project.version + 1;
     next.receipts = [
       ...next.receipts,

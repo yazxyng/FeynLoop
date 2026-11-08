@@ -6,12 +6,12 @@ import {
   Home,
   Layers,
   Loader2,
-  LogOut,
   Plus,
   UserRound,
   X,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { accountRequest } from "@/lib/account-client";
+import MyPage from "./screens/my-page";
 import { draftRecoveryKey, recoverDraft } from "@/lib/draft-recovery";
 import {
   newStudy,
@@ -41,7 +41,8 @@ type View =
   | "detail"
   | "study"
   | "result"
-  | "records";
+  | "records"
+  | "profile";
 export default function Workspace() {
   const [projects, setProjects] = useState<Project[]>([]),
     [ready, setReady] = useState(false),
@@ -63,11 +64,10 @@ export default function Workspace() {
       "처리 중입니다. 잠시만 기다려 주세요.",
     ),
     [authOpen, setAuthOpen] = useState(false),
-    [passwordRecovery, setPasswordRecovery] = useState(false);
+    [authVersion, setAuthVersion] = useState(0);
   const uploadRef = useRef<HTMLInputElement>(null),
     running = useRef(false),
-    generation = useRef(0),
-    accessTokenRef = useRef<string | undefined>(undefined);
+    generation = useRef(0);
   const canStart =
     !busy &&
     ready &&
@@ -84,8 +84,7 @@ export default function Workspace() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [view, projectId, conceptId]);
-  async function api(path: string, body?: unknown, token?: string) {
-    const accessToken = token ?? accessTokenRef.current;
+  async function api(path: string, body?: unknown) {
     const isForm = body instanceof FormData;
     const res = await fetch(path, {
       method: body === undefined ? "GET" : "POST",
@@ -94,7 +93,6 @@ export default function Workspace() {
         ...(body !== undefined && !isForm
           ? { "Content-Type": "application/json" }
           : {}),
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       ...(body !== undefined
         ? { body: isForm ? body : JSON.stringify(body) }
@@ -120,50 +118,50 @@ export default function Workspace() {
       .then((d) => setConfiguration(appConfigurationSchema.parse(d)))
       .catch(() => {});
     let active = true;
-    const load = async (id: string | null, token?: string) => {
-      const current = ++generation.current;
+    const current = ++generation.current;
+    async function loadAccount() {
       setReady(false);
-      setView("dashboard");
-      setUserId(id);
+      setView((previous) => (previous === "profile" ? "profile" : "dashboard"));
       setProjects([]);
       setConceptDrafts({});
       setCollectionId("");
+      setError("");
       try {
-        const data = await api("/api/projects", undefined, token || "");
+        const { user } = await accountRequest();
+        if (!active || current !== generation.current) return;
+        setUserId(user?.id || null);
+        const data = await api("/api/projects");
         if (active && current === generation.current)
           setProjects(data.projects);
-      } catch (e) {
+      } catch (error) {
         if (active && current === generation.current)
-          setError(e instanceof Error ? e.message : "기록을 읽지 못했습니다.");
+          setError(
+            error instanceof Error ? error.message : "기록을 읽지 못했습니다.",
+          );
       } finally {
         if (active && current === generation.current) setReady(true);
       }
-    };
-    void load(null);
-    if (supabase) {
-      let lastId: string | null = null;
-      const { data } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === "PASSWORD_RECOVERY") {
-          setPasswordRecovery(true);
-          setAuthOpen(true);
-        }
-        accessTokenRef.current = session?.access_token;
-        const id = session?.user.id || null;
-        if (id === lastId) return;
-        lastId = id;
-        void load(id, session?.access_token);
-      });
-      return () => {
-        active = false;
-        generation.current++;
-        data.subscription.unsubscribe();
-      };
     }
+    void loadAccount();
     return () => {
       active = false;
       generation.current++;
     };
+  }, [authVersion]);
+  useEffect(() => {
+    const refresh = () => setAuthVersion((version) => version + 1);
+    window.addEventListener("feynloop:account-changed", refresh);
+    const channel =
+      typeof BroadcastChannel !== "undefined"
+        ? new BroadcastChannel("feynloop-auth")
+        : null;
+    if (channel) channel.onmessage = refresh;
+    return () => {
+      window.removeEventListener("feynloop:account-changed", refresh);
+      channel?.close();
+    };
   }, []);
+
   function accept(p: Project) {
     setProjects((prev) =>
       prev.some((v) => v.id === p.id)
@@ -392,18 +390,12 @@ export default function Workspace() {
               <button
                 className="icon-button account-button"
                 disabled={busy}
-                aria-label={userId ? "로그아웃" : "계정 로그인"}
+                aria-label="마이페이지"
                 onClick={() => {
-                  if (userId)
-                    void run(async () => {
-                      const response = await supabase?.auth.signOut();
-                      if (response?.error) throw response.error;
-                      setNotice("로그아웃했습니다.");
-                    });
-                  else setAuthOpen(true);
+                  navigate("profile");
                 }}
               >
-                {userId ? <LogOut size={18} /> : <UserRound size={18} />}
+                <UserRound size={18} />
               </button>
             </div>
           </header>
@@ -559,6 +551,18 @@ export default function Workspace() {
               }
             />
           )}
+          {view === "profile" && (
+            <MyPage
+              key={userId || "guest"}
+              signedIn={Boolean(userId)}
+              onLogin={() => setAuthOpen(true)}
+              onImported={() => setAuthVersion((version) => version + 1)}
+              onLogout={async () => {
+                await accountRequest("logout");
+                setNotice("로그아웃했습니다.");
+              }}
+            />
+          )}
           {view === "records" && (
             <RecordsView
               projects={collection}
@@ -576,6 +580,7 @@ export default function Workspace() {
             { view: "library" as View, label: "카드함", icon: Layers },
             { view: "upload" as View, label: "등록", icon: Plus },
             { view: "records" as View, label: "기록", icon: ChartNoAxesColumn },
+            { view: "profile" as View, label: "마이페이지", icon: UserRound },
           ].map((item) => {
             const selected =
               view === item.view ||
@@ -605,19 +610,10 @@ export default function Workspace() {
       )}
       {authOpen && (
         <PasswordLogin
-          recovery={passwordRecovery}
-          onClose={() => {
-            setAuthOpen(false);
-            setPasswordRecovery(false);
-          }}
+          onClose={() => setAuthOpen(false)}
           onSuccess={() => {
             setAuthOpen(false);
-            setPasswordRecovery(false);
-            setNotice(
-              passwordRecovery
-                ? "비밀번호를 저장했습니다. 다음부터 비밀번호로 로그인하세요."
-                : "로그인했습니다. 내 학습 기록을 불러옵니다.",
-            );
+            setNotice("로그인했습니다. 내 학습 기록을 불러옵니다.");
           }}
         />
       )}

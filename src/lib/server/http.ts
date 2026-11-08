@@ -3,14 +3,22 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { ApiError } from "./errors";
+import { accountToken, currentAccount } from "./auth/session";
 export type Identity = {
   owner: string;
   userId?: string;
+  account?: boolean;
   cookie?: string;
   secureCookie?: boolean;
 };
 export const DEMO_COOKIE = "feynloop_session_v2";
 export async function identity(req: Request): Promise<Identity> {
+  if (accountToken(req)) {
+    const user = await currentAccount(req);
+    if (!user)
+      throw new ApiError(401, "로그인이 만료되었습니다. 다시 로그인해 주세요.");
+    return { owner: `account:${user.id}`, userId: user.id, account: true };
+  }
   const authorization = req.headers.get("authorization");
   if (authorization) {
     if (!/^Bearer \S+$/.test(authorization))
