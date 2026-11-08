@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import { dirname, join, sep } from "node:path";
 export const MAX_PDF_BYTES = 20 * 1024 * 1024;
 export async function extractPdf(file: File) {
@@ -12,10 +11,14 @@ export async function extractPdf(file: File) {
   if (new TextDecoder().decode(data.slice(0, 5)) !== "%PDF-")
     throw new Error("올바른 PDF 파일이 아닙니다.");
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  // Node에서 실제 설치 경로를 찾습니다. createRequire를 직접 import하면
+  // Webpack이 resolve 결과를 파일 경로 대신 숫자 모듈 ID로 치환합니다.
+  const nodeModule = process.getBuiltinModule("module");
+  const requireFromProject = nodeModule.createRequire(
+    join(process.cwd(), "package.json"),
+  );
   const packageDirectory = dirname(
-    createRequire(join(process.cwd(), "package.json")).resolve(
-      "pdfjs-dist/package.json",
-    ),
+    requireFromProject.resolve("pdfjs-dist/package.json"),
   );
   const task = pdfjs.getDocument({
     data,

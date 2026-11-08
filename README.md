@@ -202,3 +202,7 @@ AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이�
 - `src/components/password-login.tsx`: 입력 상태, 화면 이동, 화면별 처리 함수와 폼 배치
 - `src/lib/password-auth.ts`: Supabase 요청·입력 검증·오류 안내
 - `src/app/globals.css`의 `.login-footer`, `.login-link`: 하단 링크 정렬과 간격
+
+### 빌드된 서버에서 PDF 업로드 검증
+
+`npm run build` 후 `npm run test:built-pdf`를 실행하면, 빌드된 Next.js 서버를 임시 포트로 띄워 실제 PDF 업로드와 텍스트 추출을 확인합니다. Webpack이 PDF 라이브러리 설치 경로를 숫자 모듈 ID로 바꾸는 회귀를 검사합니다. 테스트 전용 임시 저장소와 데모 모드를 사용하며 Gemini 호출·인증 메일 발송·Supabase 데이터 변경은 하지 않습니다.
