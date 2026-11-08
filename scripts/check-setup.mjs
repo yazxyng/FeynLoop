@@ -39,7 +39,7 @@ if (url && secret) {
     };
     const client = createClient(url, secret, options);
     for (const [table, columns] of [
-      ["feynloop_accounts", "id,username"],
+      ["feynloop_accounts", "id,username,nickname,plan_preference"],
       ["feynloop_sessions", "token_hash,account_id"],
       ["feynloop_auth_limits", "key,attempts"],
       ["feynloop_account_projects", "id,version,file_path"],
@@ -49,7 +49,7 @@ if (url && secret) {
       report(
         `${table} 접근`,
         !error,
-        "서버 키 및 supabase/migrations/20261108_accounts.sql 실행 여부를 확인해 주세요.",
+        "서버 키 및 supabase/setup-accounts.sql 실행 여부를 확인해 주세요.",
       );
     }
     const bucket = await client.storage.getBucket("pdfs");
@@ -70,11 +70,12 @@ if (url && secret) {
       "feynloop_recover_account",
       "create_feynloop_account_project",
       "feynloop_import_legacy",
+      "feynloop_change_password",
     ]) {
       report(
         name,
         Boolean(schema?.paths?.["/rpc/" + name]),
-        "20261108_accounts.sql을 실행해 주세요.",
+        "supabase/setup-accounts.sql을 실행해 주세요.",
       );
     }
   } catch {

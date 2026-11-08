@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { accountRequest } from "@/lib/account-client";
-import AccountMenu from "./auth/account-menu";
+import MyPage from "./screens/my-page";
 import { draftRecoveryKey, recoverDraft } from "@/lib/draft-recovery";
 import {
   newStudy,
@@ -41,7 +41,8 @@ type View =
   | "detail"
   | "study"
   | "result"
-  | "records";
+  | "records"
+  | "profile";
 export default function Workspace() {
   const [projects, setProjects] = useState<Project[]>([]),
     [ready, setReady] = useState(false),
@@ -63,8 +64,6 @@ export default function Workspace() {
       "처리 중입니다. 잠시만 기다려 주세요.",
     ),
     [authOpen, setAuthOpen] = useState(false),
-    [accountMenuOpen, setAccountMenuOpen] = useState(false),
-    [accountUsername, setAccountUsername] = useState(""),
     [authVersion, setAuthVersion] = useState(0);
   const uploadRef = useRef<HTMLInputElement>(null),
     running = useRef(false),
@@ -122,7 +121,7 @@ export default function Workspace() {
     const current = ++generation.current;
     async function loadAccount() {
       setReady(false);
-      setView("dashboard");
+      setView((previous) => (previous === "profile" ? "profile" : "dashboard"));
       setProjects([]);
       setConceptDrafts({});
       setCollectionId("");
@@ -131,7 +130,6 @@ export default function Workspace() {
         const { user } = await accountRequest();
         if (!active || current !== generation.current) return;
         setUserId(user?.id || null);
-        setAccountUsername(user?.username || "");
         const data = await api("/api/projects");
         if (active && current === generation.current)
           setProjects(data.projects);
@@ -392,10 +390,9 @@ export default function Workspace() {
               <button
                 className="icon-button account-button"
                 disabled={busy}
-                aria-label={userId ? "내 계정" : "계정 로그인"}
+                aria-label="마이페이지"
                 onClick={() => {
-                  if (userId) setAccountMenuOpen(true);
-                  else setAuthOpen(true);
+                  navigate("profile");
                 }}
               >
                 <UserRound size={18} />
@@ -554,6 +551,18 @@ export default function Workspace() {
               }
             />
           )}
+          {view === "profile" && (
+            <MyPage
+              key={userId || "guest"}
+              signedIn={Boolean(userId)}
+              onLogin={() => setAuthOpen(true)}
+              onImported={() => setAuthVersion((version) => version + 1)}
+              onLogout={async () => {
+                await accountRequest("logout");
+                setNotice("로그아웃했습니다.");
+              }}
+            />
+          )}
           {view === "records" && (
             <RecordsView
               projects={collection}
@@ -571,6 +580,7 @@ export default function Workspace() {
             { view: "library" as View, label: "카드함", icon: Layers },
             { view: "upload" as View, label: "등록", icon: Plus },
             { view: "records" as View, label: "기록", icon: ChartNoAxesColumn },
+            { view: "profile" as View, label: "마이페이지", icon: UserRound },
           ].map((item) => {
             const selected =
               view === item.view ||
@@ -604,18 +614,6 @@ export default function Workspace() {
           onSuccess={() => {
             setAuthOpen(false);
             setNotice("로그인했습니다. 내 학습 기록을 불러옵니다.");
-          }}
-        />
-      )}
-      {accountMenuOpen && userId && (
-        <AccountMenu
-          username={accountUsername}
-          onClose={() => setAccountMenuOpen(false)}
-          onImported={() => setAuthVersion((version) => version + 1)}
-          onLogout={async () => {
-            await accountRequest("logout");
-            setAccountMenuOpen(false);
-            setNotice("로그아웃했습니다.");
           }}
         />
       )}

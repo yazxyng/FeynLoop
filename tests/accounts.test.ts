@@ -21,6 +21,11 @@ import {
   secretHash,
 } from "../src/lib/server/auth/crypto";
 import { sample } from "../src/lib/server/demo";
+import {
+  GET as getProfile,
+  POST as saveProfile,
+} from "../src/app/api/account/profile/route";
+import { learningDay } from "../src/lib/activity";
 
 function request(body?: unknown, cookie?: string, origin = "http://localhost") {
   return new Request("http://localhost/api/auth/session", {
@@ -54,6 +59,12 @@ test(
     );
     await db.exec(migration);
     await db.exec(migration); // 마이그레이션 재실행도 검증
+    const profileMigration = await readFile(
+      "supabase/migrations/20261108_profile.sql",
+      "utf8",
+    );
+    await db.exec(profileMigration);
+    await db.exec(profileMigration);
     t.after(() => db.close());
     const values = {
       SUPABASE_URL: "https://accounts.test",
@@ -366,6 +377,141 @@ test(
           "새 계정에서 저장한 설명",
         );
         assert.ok(!JSON.stringify(restored).includes(sample.pages[0].text));
+      },
+    );
+    await t.test(
+      "성공한 학습 제출만 잔디에 기록하고 중복 제출은 한 번만 센다",
+      async () => {
+        const context = { params: Promise.resolve({ id: projectId }) };
+        const current = await (
+          await project(
+            new Request(`http://localhost/api/projects/${projectId}`, {
+              headers: { cookie: aliceCookie },
+            }),
+            context,
+          )
+        ).json();
+        const body = {
+          action: "submit",
+          text: "인지 부하를 내 말로 설명해 볼게",
+          conceptId: current.project.concepts[0].id,
+          version: current.project.version,
+          requestId: crypto.randomUUID(),
+        };
+        for (let i = 0; i < 2; i++)
+          assert.equal(
+            (await updateStudy(request(body, aliceCookie), context)).status,
+            200,
+          );
+        const { profile } = await (
+          await getProfile(request(undefined, aliceCookie))
+        ).json();
+        assert.equal(profile.learning.days[learningDay()], 1);
+        assert.equal(profile.learning.currentStreak, 1);
+        assert.equal(profile.learning.totalMessages, 1);
+        const { profile: other } = await (
+          await getProfile(request(undefined, bobCookie))
+        ).json();
+        assert.equal(other.learning.totalMessages, 0);
+        assert.equal((await getProfile(request())).status, 401);
+      },
+    );
+    await t.test(
+      "닉네임과 관심 요금제 저장은 본인만 변경하며 결제 권한은 주지 않는다",
+      async () => {
+        const response = await saveProfile(
+          request({ action: "nickname", nickname: "배우는 사람" }, aliceCookie),
+        );
+        assert.equal(response.status, 200);
+        assert.equal(
+          (
+            await saveProfile(
+              request({ action: "plan", preference: "plus" }, aliceCookie),
+            )
+          ).status,
+          200,
+        );
+        const { profile } = await (
+          await getProfile(request(undefined, aliceCookie))
+        ).json();
+        assert.equal(profile.user.nickname, "배우는 사람");
+        assert.equal(profile.plan.current, "free");
+        assert.equal(profile.plan.preference, "plus");
+        assert.equal(profile.plan.billingAvailable, false);
+        assert.equal(
+          (
+            await saveProfile(
+              request(
+                { action: "nickname", nickname: "가로채기", userId: aliceId },
+                bobCookie,
+              ),
+            )
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await saveProfile(
+              request({ action: "nickname", nickname: "" }, aliceCookie),
+            )
+          ).status,
+          400,
+        );
+      },
+    );
+    await t.test(
+      "현재 비밀번호를 확인한 뒤 변경하고 기존 세션을 폐기한다",
+      async () => {
+        assert.equal(
+          (
+            await saveProfile(
+              request(
+                {
+                  action: "password",
+                  currentPassword: "wrong",
+                  password: "bob-new-password",
+                },
+                bobCookie,
+              ),
+            )
+          ).status,
+          401,
+        );
+        const response = await saveProfile(
+          request(
+            {
+              action: "password",
+              currentPassword: "bob-password",
+              password: "bob-new-password",
+            },
+            bobCookie,
+          ),
+        );
+        assert.equal(
+          response.status,
+          200,
+          JSON.stringify(await response.clone().json()),
+        );
+        assert.equal(
+          (await (await session(request(undefined, bobCookie))).json()).user,
+          null,
+        );
+        bobCookie = cookieOf(response);
+        assert.ok(
+          (await (await session(request(undefined, bobCookie))).json()).user,
+        );
+        assert.equal(
+          (
+            await authenticate(
+              request({
+                action: "login",
+                username: "bobby",
+                password: "bob-password",
+              }),
+            )
+          ).status,
+          401,
+        );
       },
     );
     await t.test(
