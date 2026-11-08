@@ -256,22 +256,6 @@ export function HomeView({
           )}
         </section>
       </div>
-      <div className="home-footnote">
-        <span className="loop-symbol" />
-        <p>
-          익숙하게 읽히는 것과 설명할 수 있는 것은 달라요.
-          <br />
-          <strong>오늘은 한 개념을 내 말로 바꿔 보세요.</strong>
-        </p>
-        <button
-          className="icon-button"
-          aria-label="새 PDF 등록"
-          disabled={busy || !ready}
-          onClick={onCreate}
-        >
-          <Plus size={22} />
-        </button>
-      </div>
     </>
   );
 }

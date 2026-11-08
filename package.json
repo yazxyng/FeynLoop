@@ -7,7 +7,9 @@
     "build": "next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check:setup": "node scripts/check-setup.mjs",
+    "test:built-pdf": "node --import tsx --test tests/built-pdf.integration.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",

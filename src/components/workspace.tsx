@@ -8,11 +8,11 @@ import {
   Loader2,
   LogOut,
   Plus,
-  Settings2,
   UserRound,
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { draftRecoveryKey, recoverDraft } from "@/lib/draft-recovery";
 import {
   newStudy,
   appConfigurationSchema,
@@ -25,8 +25,7 @@ import {
 import type { CardEntry } from "@/lib/presentation";
 import { documentTitle } from "@/lib/presentation";
 import StudyRoom from "./study-room";
-import LearningModeChoice from "./learning-mode";
-import EmailLogin from "./email-login";
+import PasswordLogin from "./password-login";
 import {
   HomeView,
   LibraryView,
@@ -63,7 +62,8 @@ export default function Workspace() {
     [operation, setOperation] = useState(
       "처리 중입니다. 잠시만 기다려 주세요.",
     ),
-    [authOpen, setAuthOpen] = useState(false);
+    [authOpen, setAuthOpen] = useState(false),
+    [passwordRecovery, setPasswordRecovery] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null),
     running = useRef(false),
     generation = useRef(0),
@@ -83,7 +83,7 @@ export default function Workspace() {
     study = project?.studies[conceptId] || newStudy(conceptId);
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [view, projectId, conceptId, study.phase, study.turns.length]);
+  }, [view, projectId, conceptId]);
   async function api(path: string, body?: unknown, token?: string) {
     const accessToken = token ?? accessTokenRef.current;
     const isForm = body instanceof FormData;
@@ -104,7 +104,17 @@ export default function Workspace() {
     if (!res.ok) throw new Error(data.error || "요청을 처리하지 못했습니다.");
     return data;
   }
+  function selectMode(mode: LearningMode) {
+    setLearningMode(mode);
+    try {
+      localStorage.setItem("feynloop:learning-mode", mode);
+    } catch {}
+  }
   useEffect(() => {
+    try {
+      if (localStorage.getItem("feynloop:learning-mode") === "live")
+        setLearningMode("live");
+    } catch {}
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => setConfiguration(appConfigurationSchema.parse(d)))
@@ -132,7 +142,11 @@ export default function Workspace() {
     void load(null);
     if (supabase) {
       let lastId: string | null = null;
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "PASSWORD_RECOVERY") {
+          setPasswordRecovery(true);
+          setAuthOpen(true);
+        }
         accessTokenRef.current = session?.access_token;
         const id = session?.user.id || null;
         if (id === lastId) return;
@@ -253,6 +267,18 @@ export default function Workspace() {
       if (!selectedProject) throw new Error("학습할 문서를 선택해 주세요.");
       const prepared = await persistEdits(selectedProject);
       const p = await command("start", {}, prepared, c.id);
+      const session = p.studies[c.id];
+      if (!["done", "review"].includes(session.phase)) {
+        const key = draftRecoveryKey(userId || "guest", p.id, session);
+        const draft = recoverDraft(sessionStorage, key, session.draft);
+        if (draft !== session.draft) {
+          accept({
+            ...p,
+            studies: { ...p.studies, [c.id]: { ...session, draft } },
+          });
+          setNotice("이 브라우저에 남아 있던 작성 중 설명을 복구했어요.");
+        }
+      }
       setProjectId(p.id);
       setConceptId(c.id);
       setView(p.studies[c.id].phase === "done" ? "result" : "study");
@@ -301,7 +327,12 @@ export default function Workspace() {
   async function submit() {
     if (!study.draft.trim()) return;
     await run(async () => {
+      const key =
+        project && draftRecoveryKey(userId || "guest", project.id, study);
       const p = await command("submit", { text: study.draft });
+      try {
+        if (key) sessionStorage.removeItem(key);
+      } catch {}
       const s = p.studies[conceptId];
       if (s.phase === "done") setView("result");
     });
@@ -421,23 +452,6 @@ export default function Workspace() {
                   else navigate("upload");
                 }}
               />
-              <details className="home-mode-settings">
-                <summary>
-                  <Settings2 size={15} />
-                  {learningMode === "demo"
-                    ? "데모로 학습 중"
-                    : "Gemini 학습 선택됨"}
-                  <ChevronDown size={15} />
-                </summary>
-                <LearningModeChoice
-                  configuration={configuration}
-                  mode={learningMode}
-                  signedIn={Boolean(userId)}
-                  busy={busy}
-                  onSelect={setLearningMode}
-                  onLogin={() => setAuthOpen(true)}
-                />
-              </details>
             </>
           )}
           {view === "library" && (
@@ -457,7 +471,7 @@ export default function Workspace() {
               signedIn={Boolean(userId)}
               busy={busy}
               canStart={canStart}
-              onMode={setLearningMode}
+              onMode={selectMode}
               onLogin={() => setAuthOpen(true)}
               onChooseFile={() => uploadRef.current?.click()}
               onFile={(file) => void upload(file)}
@@ -493,29 +507,41 @@ export default function Workspace() {
             />
           )}
           {view === "study" && project && concept && (
-            <StudyRoom
-              project={project}
-              concept={concept}
-              study={study}
-              busy={busy}
-              onDraft={(text) => patchStudy({ ...study, draft: text })}
-              onSubmit={() => void submit()}
-              onAction={(action, extra) =>
-                void run(async () => {
-                  await command(action, {
-                    ...extra,
-                    ...(action === "hint" ? { text: study.draft } : {}),
-                  });
-                })
-              }
-              onSave={() =>
-                void run(async () => {
-                  await command("draft", { text: study.draft });
-                  setNotice("설명을 저장했어요. 여기서 다시 이어갈 수 있어요.");
-                })
-              }
-              onBack={onBackFromStudy}
-            />
+            <>
+              <StudyRoom
+                project={project}
+                concept={concept}
+                study={study}
+                busy={busy}
+                onDraft={(text) => {
+                  patchStudy({ ...study, draft: text });
+                  try {
+                    sessionStorage.setItem(
+                      draftRecoveryKey(userId || "guest", project.id, study),
+                      text,
+                    );
+                  } catch {}
+                }}
+                onSubmit={() => void submit()}
+                onAction={(action, extra) =>
+                  void run(async () => {
+                    await command(action, {
+                      ...extra,
+                      ...(action === "hint" ? { text: study.draft } : {}),
+                    });
+                  })
+                }
+                onSave={() =>
+                  void run(async () => {
+                    await command("draft", { text: study.draft });
+                    setNotice(
+                      "설명을 저장했어요. 여기서 다시 이어갈 수 있어요.",
+                    );
+                  })
+                }
+                onBack={onBackFromStudy}
+              />
+            </>
           )}
           {view === "result" && project && concept && (
             <ResultView
@@ -578,11 +604,20 @@ export default function Workspace() {
         </div>
       )}
       {authOpen && (
-        <EmailLogin
-          onClose={() => setAuthOpen(false)}
+        <PasswordLogin
+          recovery={passwordRecovery}
+          onClose={() => {
+            setAuthOpen(false);
+            setPasswordRecovery(false);
+          }}
           onSuccess={() => {
             setAuthOpen(false);
-            setNotice("로그인했습니다. 내 학습 기록을 불러옵니다.");
+            setPasswordRecovery(false);
+            setNotice(
+              passwordRecovery
+                ? "비밀번호를 저장했습니다. 다음부터 비밀번호로 로그인하세요."
+                : "로그인했습니다. 내 학습 기록을 불러옵니다.",
+            );
           }}
         />
       )}
