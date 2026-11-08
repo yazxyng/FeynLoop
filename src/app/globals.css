@@ -3371,7 +3371,16 @@ body:has(.dark-mode) {
 }
 
 /* 채팅 응답은 대화 안에서 작성 중 말풍선으로 표시합니다. */
-.chat-typing { margin-top: 24px; }
+.chat-typing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 24px;
+}
+.chat-typing .chat-speaker {
+  display: block;
+  margin-bottom: 8px;
+}
 .typing-bubble {
   display: inline-flex;
   align-items: center;
