@@ -627,3 +627,74 @@ test("Gemini가 400으로 반환하는 잘못된 키도 설정 오류로 안내�
     return true;
   });
 });
+
+test("후속 평가 요청은 최근 평가와 첫 평가를 함께 전달한다", async (t) => {
+  environment(t);
+  const previous = {
+    ...demoFeedback("인출 연습", "설명"),
+    understood: ["설명에서 확인된 연결"],
+    missing: ["아직 말하지 않은 조건"],
+  };
+  let input: Record<string, any> = {};
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (_url: unknown, init?: RequestInit) => {
+      input = JSON.parse(
+        JSON.parse(String(init?.body)).contents[0].parts[0].text,
+      );
+      return success({
+        ...previous,
+        question: "어떤 조건이 필요할까?",
+        hints: ["조건 하나를 골라 봐.", "그 조건이 없는 경우를 생각해 봐."],
+        questionGrounding: {
+          answerQuote: "내 말로",
+          page: 1,
+          quote: sample.pages[0].text.slice(0, 20),
+        },
+      });
+    },
+  );
+  await evaluate(
+    sample.pages,
+    sample.concepts[0],
+    {
+      ...newStudy(sample.concepts[0].id),
+      assessment: previous,
+      firstAssessment: previous,
+    },
+    "내 말로 설명했어",
+    true,
+    false,
+  );
+  assert.deepEqual(
+    input.previousAssessment.confirmedUnderstanding,
+    previous.understood,
+  );
+  assert.deepEqual(input.firstAssessment, previous);
+});
+
+test("사용자가 이미 말한 원문 표현을 짚는 맞춤 질문은 원문 유출로 오인하지 않는다", async (t) => {
+  environment(t);
+  const answer =
+    "인출 연습은 책을 덮고 기억에서 배운 내용을 스스로 떠올려 설명하는 학습 방법이다.";
+  const question = `“${answer}”라고 했는데, 그냥 다시 읽는 것과 무슨 차이가 있을까?`;
+  const fetch = t.mock.method(globalThis, "fetch", async () =>
+    success({
+      ...demoFeedback("인출 연습", answer),
+      question,
+      hints: ["두 방법을 나눠 봐.", "기억을 꺼내는 때를 비교해 봐."],
+      questionGrounding: { answerQuote: "책을 덮고", page: 1, quote: answer },
+    }),
+  );
+  const result = await evaluate(
+    [{ number: 1, text: answer }],
+    sample.concepts[0],
+    newStudy(sample.concepts[0].id),
+    answer,
+    true,
+    false,
+  );
+  assert.equal(result.feedback.question, question);
+  assert.equal(fetch.mock.callCount(), 1);
+});

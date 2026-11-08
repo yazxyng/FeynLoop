@@ -9,6 +9,12 @@ import type { SourcePage, PrivateStudy } from "./models";
 import { demoFeedback } from "./demo";
 import { ApiError } from "./errors";
 import { generateGemini } from "./gemini";
+import {
+  learningContext,
+  fallbackDialogue,
+  sameQuestion,
+  scaffoldHints,
+} from "./learning-dialogue";
 import { evaluationInstruction } from "./learning-prompts";
 import {
   assessmentResponseSchema,
@@ -48,7 +54,7 @@ export async function extractConcepts(
     }));
   }
   const parsed = await generateGemini(
-    '개념 5~10개를 학습 순서대로 추출하라. 단, 짧은 문서에 독립적인 개념이 부족하면 1~4개도 허용한다. 개수를 채우려고 문서에 없는 내용이나 중복 개념을 만들지 마라. 정의나 정답을 노출하지 않는 짧은 개념 이름만 title로 제공하고 description은 학습 목표를 한 문장으로 작성하라. {concepts:[{id:문자열,title,description,pages:[제공한 실제 페이지 번호],importance:"높음"|"보통",order:정수}]}',
+    '개념 5~10개를 학습 순서대로 추출하라. 단, 짧은 문서에 독립적인 개념이 부족하면 1~4개도 허용한다. 개수를 채우려고 문서에 없는 내용이나 중복 개념을 만들지 마라. 페이지 번호나 “핵심 개념”, “주요 내용” 같은 일반적인 표현을 제목으로 쓰지 말고, 학습자가 무엇을 설명할지 알 수 있는 구체적인 개념명을 사용하라. 정의나 정답을 노출하지 않는 짧은 개념 이름만 title로 제공하고 description은 학습 목표를 한 문장으로 작성하라. {concepts:[{id:문자열,title,description,pages:[제공한 실제 페이지 번호],importance:"높음"|"보통",order:정수}]}',
     { pages },
     conceptsResponseSchema,
   );
@@ -131,7 +137,16 @@ export function groundAssessment(original: Feedback, pages: SourcePage[]) {
   ];
   if (withheld) {
     // 확인되지 않은 판단을 개선 조언이나 변화 요약에서 다시 확정하지 않습니다.
-    feedback.improve = [];
+    feedback.improve = [
+      ...feedback.errors.map(
+        (claim) =>
+          `확인된 오류인 “${claim}” 부분을 다시 설명하고, 왜 그렇게 생각했는지 연결해 보세요.`,
+      ),
+      ...feedback.missing.map(
+        (claim) =>
+          `아직 설명하지 않은 “${claim}” 부분을 자신의 말로 보완해 보세요.`,
+      ),
+    ].slice(0, 12);
     feedback.change =
       "일부 평가의 문서 근거가 확인되지 않아 이해도 변화 판단을 보류했어요.";
     feedback.unverified = [
@@ -157,9 +172,9 @@ export async function evaluate(
       final ? undefined : study.turns.at(-1)?.answer,
     );
     if (!final && study.turns.length === 1)
-      f.question = `방금 “${explanation.slice(0, 60)}”라고 설명했어요. 그 사례에서 원인과 결과는 각각 무엇인가요?`;
+      f.question = `방금 “${explanation.slice(0, 60)}”라고 설명했어요. 그렇게 생각한 이유를 한 가지 말해 줄래?`;
     if (!final && study.turns.length === 2)
-      f.question = `“${explanation.slice(0, 60)}”라는 답을 다른 상황에도 적용할 수 있을까요? ${concept.title}이 잘 적용되지 않는 경우를 떠올려 주세요.`;
+      f.question = `“${explanation.slice(0, 60)}”라는 설명에서 조건 하나가 바뀌면 결과도 같을까?`;
     return {
       feedback: f,
       hints: [
@@ -176,14 +191,11 @@ export async function evaluate(
       firstExplanation: study.first || explanation,
       explanation,
       latestAnswer: explanation,
-      questionMode: /모르|어려|헷갈|막혔/.test(explanation)
-        ? "small_step"
-        : "probe",
+      ...learningContext(concept, study, explanation),
       lastQuestion: study.turns.at(-1)?.question || null,
       previousQuestions: study.turns.map((turn) => turn.question),
       remainingQuestions: Math.max(0, 3 - study.turns.length),
       turns: study.turns,
-      firstAssessment: final ? study.firstAssessment : undefined,
       evidenceViews: study.evidenceViews,
       final,
     },
@@ -203,8 +215,8 @@ export async function evaluate(
     normalizeText(grounding.answerQuote) &&
     normalizeText(explanation).includes(normalizeText(grounding.answerQuote)) &&
     hasSourceQuote({ ...grounding, kind: "understood", claim: "" }, pages);
-  const repeated = study.turns.some(
-    (turn) => normalizeText(turn.question) === normalizeText(question),
+  const repeated = study.turns.some((turn) =>
+    sameQuestion(turn.question, question),
   );
   // 원문을 닫은 학습에서 문서를 해설하거나 긴 원문을 그대로 내보내지 않습니다.
   const citesDocument = (text: string) =>
@@ -219,7 +231,8 @@ export async function evaluate(
         const fragment = normalized.slice(offset, offset + 24);
         if (
           !normalizeText(concept.title).includes(fragment) &&
-          source.includes(fragment)
+          source.includes(fragment) &&
+          !normalizeText(explanation).includes(fragment)
         )
           return true;
       }
@@ -238,28 +251,17 @@ export async function evaluate(
     (question.match(/[?？]/g)?.length || 0) > 1
   ) {
     // 평가에 미확인 항목이 있어도 질문 자체의 근거가 확인되면 맞춤 질문을 유지합니다.
-    const anchor = normalizeText(explanation).slice(0, 60);
-    const candidates = /모르|어려|헷갈|막혔/.test(explanation)
-      ? [
-          `괜찮아. ${concept.title}이 쓰일 법한 상황 하나만 떠올려 볼까?`,
-          `${concept.title}에서 이해한 부분과 아직 헷갈리는 부분을 나눠 말해 줄래?`,
-        ]
-      : [
-          `“${anchor}”라고 한 부분을 조금 더 풀어 말해 줄래?`,
-          `“${anchor}”라는 생각이 성립하려면 어떤 조건이 필요할까?`,
-          `“${anchor}”에서 조건 하나가 달라지면 결과도 달라질까?`,
-        ];
-    feedback.question =
-      candidates.find(
-        (candidate) =>
-          !study.turns.some(
-            (turn) => normalizeText(turn.question) === normalizeText(candidate),
-          ),
-      ) || `이번 설명에서 아직 확신이 안 드는 부분 하나를 골라 줄래?`;
-    hints = [
-      "방금 답변에서 내가 확실히 아는 부분 하나만 골라 봐.",
-      "그 부분을 처음 듣는 사람에게 한 문장으로 풀어 말해 봐.",
-    ];
+    console.info("FeynLoop dialogue fallback:", {
+      reason: !questionSupported
+        ? "grounding"
+        : repeated
+          ? "repeated"
+          : "question-quality",
+      answeredQuestions: study.turns.length,
+    });
+    const fallback = fallbackDialogue(concept, study, explanation);
+    feedback.question = fallback.question;
+    hints = fallback.hints;
   } else {
     feedback.question = question;
   }
@@ -272,10 +274,7 @@ export async function evaluate(
         /(?:뜻이야|말해\.|훈련이야|강화돼|강화한다|활동이다)/u.test(hint),
     )
   ) {
-    hints = [
-      "질문에서 달라지는 조건 하나만 먼저 골라 봐.",
-      "그 조건이 바뀌기 전과 후를 나눠, 네 설명으로 결과를 예상해 봐.",
-    ];
+    hints = scaffoldHints(feedback.question);
   }
   feedback.hint = "";
   return { feedback, hints };

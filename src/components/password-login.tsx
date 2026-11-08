@@ -1,16 +1,28 @@
 "use client";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LockKeyhole, Loader2, KeyRound, X } from "lucide-react";
+import { accountInputSchema } from "@/lib/account-types";
+import InlineFeedback from "./inline-feedback";
 import { accountRequest, AccountRequestError } from "@/lib/account-client";
 import { Button } from "./ui/button";
 import LoginFooter from "./auth/login-footer";
 import PasswordField from "./auth/password-field";
 import { LOGIN_COPY, USERNAME_HELP, type LoginStep } from "./auth/login-copy";
 
-type Props = { onClose: () => void; onSuccess: () => void };
+type Props = {
+  onClose: () => void;
+  onSuccess: () => void;
+  onStart?: () => void;
+  presentation?: "dialog" | "page";
+};
 const COOLDOWN_KEY = "feynloop:account-retry-at";
 
-export default function PasswordLogin({ onClose, onSuccess }: Props) {
+export default function PasswordLogin({
+  onClose,
+  onSuccess,
+  onStart,
+  presentation = "dialog",
+}: Props) {
   const [step, setStep] = useState<LoginStep>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -30,13 +42,15 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    try {
-      const stored = Number(sessionStorage.getItem(COOLDOWN_KEY));
-      if (Number.isFinite(stored)) setRetryAt(stored);
-    } catch {}
     return () => previous?.focus();
   }, []);
   useEffect(() => {
+    setRetryAt(0);
+    setNow(Date.now());
+    try {
+      const stored = Number(sessionStorage.getItem(`${COOLDOWN_KEY}:${step}`));
+      if (Number.isFinite(stored)) setRetryAt(stored);
+    } catch {}
     dialogRef.current
       ?.querySelector<HTMLInputElement>("input:not([disabled])")
       ?.focus();
@@ -61,6 +75,20 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
       setErrorMessage("비밀번호가 서로 다릅니다.");
       return;
     }
+    const fields = {
+      action: step,
+      username,
+      password,
+      ...(step === "recover" ? { recoveryCode: recoveryInput } : {}),
+    };
+    const validated = accountInputSchema.safeParse(fields);
+    if (!validated.success) {
+      setErrorMessage(
+        validated.error.issues[0]?.message || "입력 내용을 확인해 주세요.",
+      );
+      return;
+    }
+    onStart?.();
     requestInProgress.current = true;
     setBusy(true);
     setErrorMessage("");
@@ -84,7 +112,7 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
         setNow(Date.now());
         setRetryAt(until);
         try {
-          sessionStorage.setItem(COOLDOWN_KEY, String(until));
+          sessionStorage.setItem(`${COOLDOWN_KEY}:${step}`, String(until));
         } catch {}
       }
     } finally {
@@ -99,7 +127,7 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
       if (issuedRecoveryCode) onSuccess();
       else onClose();
     }
-    if (event.key !== "Tab") return;
+    if (presentation === "page" || event.key !== "Tab") return;
     const controls = Array.from(
       dialogRef.current?.querySelectorAll<HTMLElement>(
         "button:not([disabled]),input:not([disabled]),a[href]",
@@ -116,12 +144,16 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
     }
   }
   return (
-    <div className="modal-backdrop">
+    <div
+      className={
+        presentation === "page" ? "login-page-content" : "modal-backdrop"
+      }
+    >
       <section
         className="modal password-login"
         ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
+        role={presentation === "dialog" ? "dialog" : undefined}
+        aria-modal={presentation === "dialog" ? true : undefined}
         aria-labelledby="login-title"
         onKeyDown={handleDialogKeyDown}
       >
@@ -168,11 +200,6 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
             </span>
             <h2 id="login-title">{copy.title}</h2>
             <p>{copy.description}</p>
-            {errorMessage && (
-              <div className="login-alert error" role="alert">
-                {errorMessage}
-              </div>
-            )}
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -192,7 +219,10 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
                 disabled={isBusy}
                 placeholder="아이디를 입력해 주세요"
                 value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                onChange={(event) => {
+                  setUsername(event.target.value);
+                  setErrorMessage("");
+                }}
                 aria-describedby="username-help"
               />
               <small id="username-help" className="account-input-help">
@@ -217,7 +247,7 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
               )}
               <PasswordField
                 id="account-password"
-                label={isNewPassword ? "새 비밀번호" : "비밀번호"}
+                label={step === "recover" ? "새 비밀번호" : "비밀번호"}
                 value={password}
                 onChange={setPassword}
                 isVisible={isPasswordVisible}
@@ -256,12 +286,16 @@ export default function PasswordLogin({ onClose, onSuccess }: Props) {
                   copy.submitLabel
                 )}
               </Button>
+              <InlineFeedback error={errorMessage} />
             </form>
             <LoginFooter
               step={step}
               isBusy={isBusy}
               onChangeStep={changeStep}
               onClose={onClose}
+              closeLabel={
+                presentation === "page" ? "소개 화면으로 돌아가기" : undefined
+              }
             />
           </>
         )}

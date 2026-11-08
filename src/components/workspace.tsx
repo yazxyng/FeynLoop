@@ -1,14 +1,17 @@
 "use client";
 import { useWorkspace } from "./workspace-provider";
 import { workspacePath, type WorkspaceRoute } from "@/lib/workspace-routes";
-import { ChevronDown, UserRound, X } from "lucide-react";
+import { ChevronDown, UserRound } from "lucide-react";
 import { accountRequest } from "@/lib/account-client";
 import MyPage from "./screens/my-page";
 import ProcessingDialog from "./processing-dialog";
 import { draftRecoveryKey } from "@/lib/draft-recovery";
 import { documentTitle } from "@/lib/presentation";
 import StudyRoom from "./study-room";
-import PasswordLogin from "./password-login";
+import InlineFeedback from "./inline-feedback";
+import Welcome from "./welcome";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   HomeView,
   LibraryView,
@@ -56,7 +59,7 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
     notice,
     setError,
     setNotice,
-    authOpen,
+    demoAccess,
     setAuthOpen,
     setAuthVersion,
     uploadRef,
@@ -68,7 +71,26 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
     retryRoute,
     selectMode,
   } = useWorkspace();
+  const router = useRouter();
+  const needsLogin = ready && !userId && !demoAccess;
+  useEffect(() => {
+    if (needsLogin && pathname !== "/") router.replace("/login");
+  }, [needsLogin, pathname, router]);
   if (workspacePath(route) !== pathname) return null;
+  if (!ready)
+    return (
+      <main className="entry-loading" role="status">
+        학습 공간을 준비하고 있어요.
+      </main>
+    );
+  if (needsLogin)
+    return pathname === "/" ? (
+      <Welcome />
+    ) : (
+      <main className="entry-loading" role="status">
+        로그인 화면으로 이동하고 있어요.
+      </main>
+    );
   return (
     <div className={`app-shell ${dark ? "dark-mode" : ""}`}>
       <main className={`app-frame view-${view}`}>
@@ -115,23 +137,6 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
               </button>
             </div>
           </header>
-        )}
-        {(error || notice) && (
-          <div
-            className={`alert ${error ? "error" : ""}`}
-            role={error ? "alert" : "status"}
-          >
-            <span>{error || notice}</span>
-            <button
-              aria-label="알림 닫기"
-              onClick={() => {
-                setError("");
-                setNotice("");
-              }}
-            >
-              <X size={16} />
-            </button>
-          </div>
         )}
         <input
           ref={uploadRef}
@@ -285,6 +290,12 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
                   busy={busy}
                   typing={activeOperation && busyPresentation === "reply"}
                   pendingMessage={pendingMessage}
+                  errorMessage={error}
+                  noticeMessage={notice}
+                  onDismissFeedback={() => {
+                    setError("");
+                    setNotice("");
+                  }}
                   statusMessage={
                     activeOperation
                       ? operation
@@ -366,19 +377,20 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
               onCreate={() => navigate("upload")}
             />
           )}
+          {view !== "study" && (
+            <InlineFeedback
+              error={error}
+              notice={notice}
+              onDismiss={() => {
+                setError("");
+                setNotice("");
+              }}
+            />
+          )}
         </div>
       </main>
       {activeOperation && busyPresentation === "dialog" && (
         <ProcessingDialog message={operation} />
-      )}
-      {authOpen && (
-        <PasswordLogin
-          onClose={() => setAuthOpen(false)}
-          onSuccess={() => {
-            setAuthOpen(false);
-            setNotice("로그인했습니다. 내 학습 기록을 불러옵니다.");
-          }}
-        />
       )}
     </div>
   );

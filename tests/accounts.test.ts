@@ -86,6 +86,7 @@ test(
     });
     const legacyId = "72a492f8-6b8d-4d58-8189-557e4222e945";
     let legacyLookups = 0;
+    let failRegistration = false;
     t.mock.method(
       globalThis,
       "fetch",
@@ -118,6 +119,11 @@ test(
         try {
           if (url.pathname.startsWith("/rest/v1/rpc/")) {
             const name = url.pathname.split("/").at(-1)!;
+            if (failRegistration && name === "feynloop_register_account")
+              return Response.json(
+                { code: "PGRST202", message: "private database details" },
+                { status: 404 },
+              );
             assert.match(name, /^[a-z_]+$/);
             const keys = Object.keys(body);
             const result = await db.query<{ value: unknown }>(
@@ -249,6 +255,44 @@ test(
           secretHash(aliceCookie.split("=")[1]),
         );
         assert.equal(legacyLookups, 0);
+      },
+    );
+    await t.test(
+      "가입 저장소 장애는 계정을 만들지 않고 안전한 안내와 진단 코드만 남긴다",
+      async () => {
+        const messages: unknown[][] = [];
+        const logger = t.mock.method(console, "error", (...args: unknown[]) => {
+          messages.push(args);
+        });
+        failRegistration = true;
+        try {
+          const response = await authenticate(
+            request({
+              action: "signup",
+              username: "storage_test",
+              password: "private-test-password",
+            }),
+          );
+          assert.equal(response.status, 503);
+          const body = await response.json();
+          assert.match(body.error, /계정 서버에 연결하지 못했어요/);
+          const diagnostic = JSON.stringify(messages);
+          assert.match(diagnostic, /register/);
+          assert.match(diagnostic, /PGRST202/);
+          assert.ok(!diagnostic.includes("private-test-password"));
+          assert.ok(!diagnostic.includes("private database details"));
+          assert.equal(
+            (
+              await db.query(
+                "select id from feynloop_accounts where username='storage_test'",
+              )
+            ).rows.length,
+            0,
+          );
+        } finally {
+          failRegistration = false;
+          logger.mock.restore();
+        }
       },
     );
     await t.test("쿠키로 로그인 복원, 중복 아이디·오답·CSRF 거부", async () => {

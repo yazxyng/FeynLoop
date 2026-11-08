@@ -19,73 +19,78 @@ const items = [
 ];
 
 export default function BottomNavigation() {
-  const { view, pathname, busy, dark, setError, setNotice } = useWorkspace();
+  const {
+    view,
+    pathname,
+    busy,
+    dark,
+    userId,
+    demoAccess,
+    setError,
+    setNotice,
+  } = useWorkspace();
   const selected = view === "concepts" || view === "detail" ? "library" : view;
-  const hidden = dark || !parseWorkspacePath(pathname);
-  const nav = useRef<HTMLElement>(null);
-  const links = useRef(new Map<View, HTMLAnchorElement>());
-  const [indicator, setIndicator] = useState({
-    left: 0,
-    width: 0,
-    animate: false,
-  });
+  const hidden =
+    dark || !parseWorkspacePath(pathname) || (!userId && !demoAccess);
+  const navRef = useRef<HTMLElement>(null);
+  const [highlight, setHighlight] = useState<{
+    left: number;
+    width: number;
+    animate: boolean;
+  } | null>(null);
 
   useLayoutEffect(() => {
-    if (hidden || !nav.current) return;
-    let frame = 0;
-    // 이름이 펼쳐지거나 화면 크기가 바뀌어도 선택 배경을 버튼에 맞춥니다.
+    const nav = navRef.current;
+    if (hidden || !nav) {
+      setHighlight(null);
+      return;
+    }
+    // 버튼의 실제 위치를 측정해 흰 배경만 이동합니다. 이름은 선택 시 바로 표시합니다.
     const measure = () => {
-      const link = links.current.get(selected);
-      const container = nav.current;
-      if (!link || !container) return;
+      const link = nav.querySelector<HTMLAnchorElement>(
+        '[aria-current="page"]',
+      );
+      if (!link) return;
       const box = link.getBoundingClientRect();
-      const left = box.left - container.getBoundingClientRect().left;
-      setIndicator((previous) =>
+      const left = box.left - nav.getBoundingClientRect().left;
+      setHighlight((previous) =>
+        previous &&
         Math.abs(previous.left - left) < 0.1 &&
         Math.abs(previous.width - box.width) < 0.1
           ? previous
-          : { left, width: box.width, animate: previous.width > 0 },
+          : { left, width: box.width, animate: previous !== null },
       );
     };
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(measure);
-    };
     measure();
-    const observer = new ResizeObserver(schedule);
-    observer.observe(nav.current);
-    for (const link of links.current.values()) observer.observe(link);
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    nav.querySelectorAll("a").forEach((link) => observer.observe(link));
+    return () => observer.disconnect();
   }, [selected, hidden]);
 
   if (hidden) return null;
   return (
     <nav
-      ref={nav}
+      ref={navRef}
       className="app-navigation"
       aria-label="주 메뉴"
-      data-ready={indicator.width > 0}
+      data-ready={Boolean(highlight)}
     >
-      <span
-        className="navigation-indicator"
-        aria-hidden="true"
-        data-animate={indicator.animate}
-        style={{
-          width: indicator.width,
-          transform: `translate3d(${indicator.left}px, 0, 0)`,
-        }}
-      />
+      {highlight && (
+        <span
+          className="navigation-highlight"
+          aria-hidden="true"
+          data-animate={highlight.animate}
+          style={{
+            width: highlight.width,
+            transform: `translateX(${highlight.left}px)`,
+          }}
+        />
+      )}
       {items.map((item) => (
         <Link
           key={item.view}
           href={workspacePath({ view: item.view })}
-          ref={(element) => {
-            if (element) links.current.set(item.view, element);
-            else links.current.delete(item.view);
-          }}
           className={selected === item.view ? "active" : ""}
           aria-current={selected === item.view ? "page" : undefined}
           aria-label={item.label}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { scaffoldHints } from "./learning-dialogue";
 import { feedbackSchema } from "../types";
 
 export const questionGroundingSchema = z.object({
@@ -12,11 +13,6 @@ export const assessmentResponseSchema = feedbackSchema.extend({
   hints: z.array(z.string().min(1).max(1000)).length(2),
   questionGrounding: questionGroundingSchema.nullable(),
 });
-
-const fallbackHints = [
-  "질문과 연결되는 네 설명의 표현 하나를 먼저 골라 봐.",
-  "그 표현을 한 문장 더 풀어, 왜 그렇게 생각했는지 이어서 말해 봐.",
-];
 
 /** 보조 항목 하나의 실패 때문에 정상 질문까지 버리지 않습니다. 판단을 만들어 채우지는 않습니다. */
 export function normalizeAssessmentResponse(value: unknown): unknown {
@@ -76,6 +72,9 @@ export function normalizeAssessmentResponse(value: unknown): unknown {
         hint.length <= 1000,
     )
     .slice(0, 2);
+  const fallbackHints = scaffoldHints(
+    typeof raw.question === "string" ? raw.question : "",
+  );
   while (hints.length < 2) hints.push(fallbackHints[hints.length]);
   const question =
     typeof raw.question === "string" && raw.question.length <= 2000
