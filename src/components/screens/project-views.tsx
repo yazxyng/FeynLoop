@@ -18,8 +18,14 @@ import type {
   Project,
   Study,
 } from "@/lib/types";
-import { completedCards, documentTitle, studyLabel } from "@/lib/presentation";
+import {
+  completedCards,
+  documentTitle,
+  studyLabel,
+  sourceReference,
+} from "@/lib/presentation";
 import LearningModeChoice from "../learning-mode";
+import { MAX_SOURCE_TEXT_LENGTH } from "@/lib/source-input";
 import { Button } from "../ui/button";
 import { ArrowButton, PageTitle } from "./collection-views";
 
@@ -33,6 +39,7 @@ export function ImportView({
   onLogin,
   onChooseFile,
   onFile,
+  onText,
   onSample,
   onBack,
 }: {
@@ -45,10 +52,14 @@ export function ImportView({
   onLogin: () => void;
   onChooseFile: () => void;
   onFile: (file: File) => void;
+  onText: (title: string, text: string) => void;
   onSample: () => void;
   onBack: () => void;
 }) {
   const [dragging, setDragging] = useState(false);
+  const [source, setSource] = useState<"pdf" | "text">("pdf");
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
   return (
     <>
       <div className="simple-toolbar">
@@ -61,42 +72,119 @@ export function ImportView({
           <X size={21} />
         </button>
         <strong>개념 등록</strong>
-        <span className="status-pill white">PDF</span>
+        <span className="status-pill white">
+          {source === "pdf" ? "PDF" : "텍스트"}
+        </span>
       </div>
       <PageTitle
         title="공부한 내용을 넣어 주세요"
-        description="PDF에서 하나씩 설명할 핵심 카드를 만들어요."
+        description="PDF나 텍스트 원문에서 하나씩 설명할 핵심 카드를 만들어요."
       />
-      <div className="import-layout">
-        <section
-          className={`pdf-dropzone ${dragging ? "dragging" : ""}`}
-          onDragOver={(event) => {
-            event.preventDefault();
-            if (canStart) setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragging(false);
-            if (canStart && event.dataTransfer.files[0])
-              onFile(event.dataTransfer.files[0]);
-          }}
+      <div className="source-switch" role="group" aria-label="자료 입력 방식">
+        <button
+          aria-pressed={source === "pdf"}
+          disabled={busy}
+          onClick={() => setSource("pdf")}
         >
-          <span className="upload-symbol">
-            <Upload size={30} />
-          </span>
-          <h2>여기에 PDF를 놓아 주세요</h2>
-          <p>
-            교재, 강의 자료, 공부한 문서까지.
-            <br />
-            설명하고 싶은 내용이 담긴 PDF를 선택하세요.
-          </p>
-          <Button variant="outline" disabled={!canStart} onClick={onChooseFile}>
-            <Plus size={16} />
-            PDF 파일 선택
-          </Button>
-          <small>최대 20MB · 150페이지 · 텍스트가 있는 PDF</small>
-        </section>
+          PDF 업로드
+        </button>
+        <button
+          aria-pressed={source === "text"}
+          disabled={busy}
+          onClick={() => setSource("text")}
+        >
+          텍스트 붙여넣기
+        </button>
+      </div>
+      <div className="import-layout">
+        {source === "text" ? (
+          <form
+            className="text-source-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (
+                canStart &&
+                text.trim() &&
+                text.length <= MAX_SOURCE_TEXT_LENGTH
+              )
+                onText(title, text);
+            }}
+          >
+            <label htmlFor="source-title">
+              자료 제목 <span>선택</span>
+            </label>
+            <input
+              id="source-title"
+              value={title}
+              maxLength={80}
+              disabled={busy}
+              placeholder="예: 운영체제 수업 정리"
+              onChange={(event) => setTitle(event.target.value)}
+            />
+            <label htmlFor="source-text">텍스트 원문</label>
+            <textarea
+              id="source-text"
+              value={text}
+              maxLength={MAX_SOURCE_TEXT_LENGTH}
+              disabled={busy}
+              placeholder="학습할 내용을 붙여넣어 주세요."
+              onChange={(event) => setText(event.target.value)}
+              aria-describedby="source-text-help source-text-count"
+            />
+            <div className="text-source-help">
+              <small id="source-text-help">
+                공백 포함 최대 3,000자 · 학습 중에는 원문을 숨겨요.
+              </small>
+              <span id="source-text-count">
+                {text.length.toLocaleString()} / 3,000
+              </span>
+            </div>
+            <Button
+              type="submit"
+              disabled={
+                !canStart ||
+                !text.trim() ||
+                text.length > MAX_SOURCE_TEXT_LENGTH
+              }
+            >
+              텍스트로 카드 만들기 <ArrowRight size={17} />
+            </Button>
+          </form>
+        ) : (
+          <section
+            className={`pdf-dropzone ${dragging ? "dragging" : ""}`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (canStart) setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              if (canStart && event.dataTransfer.files[0])
+                onFile(event.dataTransfer.files[0]);
+            }}
+          >
+            <span className="upload-symbol">
+              <Upload size={30} />
+            </span>
+            <h2>여기에 PDF를 놓아 주세요</h2>
+            <p>
+              교재, 강의 자료, 공부한 문서까지.
+              <br />
+              설명하고 싶은 내용이 담긴 PDF를 선택하세요.
+            </p>
+            <Button
+              variant="outline"
+              disabled={!canStart}
+              onClick={onChooseFile}
+            >
+              <Plus size={16} />
+              PDF 파일 선택
+            </Button>
+            <small>최대 20MB · 150페이지 · 텍스트가 있는 PDF</small>
+          </section>
+        )}
         <div className="import-settings">
           <LearningModeChoice
             configuration={configuration}
@@ -232,7 +320,12 @@ export function ConceptsView({
                 />
               </details>
               <div className="editable-bottom">
-                <span>근거 p.{concept.pages.join(", ")}</span>
+                <span>
+                  근거 ·{" "}
+                  {concept.pages
+                    .map((page) => sourceReference(project, page))
+                    .join(", ")}
+                </span>
                 {drafts[`${project.id}:${concept.id}`] && !started ? (
                   <button
                     disabled={busy || !concept.title.trim()}
@@ -290,9 +383,11 @@ export function ConceptsView({
 export function FeedbackPanel({
   feedback,
   label,
+  project,
 }: {
   feedback: Feedback;
   label: string;
+  project: Project;
 }) {
   const groups: [string, string[], string][] = [
     ["확인된 이해", feedback.understood, "positive"],
@@ -320,7 +415,7 @@ export function FeedbackPanel({
                     .map((e, j) => (
                       <details className="evidence-reference" key={j}>
                         <summary>
-                          문서 근거 p.{e.page}
+                          문서 근거 · {sourceReference(project, e.page)}
                           <ChevronDown size={13} />
                         </summary>
                         <blockquote>{e.quote}</blockquote>
@@ -440,7 +535,11 @@ export function ResultView({
           <ChevronDown size={18} />
         </summary>
         {study.result && (
-          <FeedbackPanel feedback={study.result} label="지금의 이해 돌아보기" />
+          <FeedbackPanel
+            project={project}
+            feedback={study.result}
+            label="지금의 이해 돌아보기"
+          />
         )}
       </details>
       {study.initialFeedback && (
@@ -450,6 +549,7 @@ export function ResultView({
             <ChevronDown size={18} />
           </summary>
           <FeedbackPanel
+            project={project}
             feedback={study.initialFeedback}
             label="첫 설명에서 확인한 내용"
           />

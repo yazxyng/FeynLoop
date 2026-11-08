@@ -116,6 +116,7 @@ export function present(
     name: project.name,
     createdAt: project.createdAt,
     pageCount: project.pageCount,
+    sourceType: project.sourceType || "pdf",
     concepts: project.concepts.map((c) => ({ ...c, pages: [...c.pages] })),
     studies,
     version: project.version,

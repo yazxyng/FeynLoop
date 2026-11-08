@@ -197,7 +197,7 @@ export function HomeView({
                 : next.study
                   ? "이어서 설명하기"
                   : "설명 시작"
-              : "PDF로 카드 만들기"}
+              : "자료로 카드 만들기"}
           </ArrowButton>
         </section>
         <section
@@ -242,7 +242,7 @@ export function HomeView({
                 배움이 선명해져요.
               </h3>
               <p>
-                공부한 PDF를 넣으면
+                공부한 자료를 넣으면
                 <br />
                 하나씩 설명할 카드를 만들어요.
               </p>
@@ -341,7 +341,7 @@ export function LibraryView({
       {!all.length ? (
         <EmptyState
           title="아직 꺼내 볼 카드가 없어요"
-          description="PDF 하나로 나만의 카드함을 채워 보세요."
+          description="PDF나 텍스트로 나만의 카드함을 채워 보세요."
           onCreate={onCreate}
         />
       ) : !visible.length ? (
@@ -420,7 +420,10 @@ export function CardDetailView({
         <StageMeter study={project.studies[concept.id]} />
         <div className="detail-meta">
           <span>
-            관련 페이지 {concept.pages.map((p) => `p.${p}`).join(", ")}
+            관련 근거{" "}
+            {project.sourceType === "text"
+              ? "텍스트 원문"
+              : concept.pages.map((p) => `p.${p}`).join(", ")}
           </span>
           <span>{study.attempt}번째 학습</span>
         </div>
@@ -592,7 +595,10 @@ export function RecordsView({
                   <div>
                     <strong>{documentTitle(p.name)}</strong>
                     <small>
-                      {p.pageCount}페이지 · {p.concepts.length}개 카드
+                      {p.sourceType === "text"
+                        ? "텍스트 원문"
+                        : `${p.pageCount}페이지`}{" "}
+                      · {p.concepts.length}개 카드
                     </small>
                   </div>
                   <span
@@ -608,7 +614,7 @@ export function RecordsView({
       ) : (
         <EmptyState
           title="설명할수록 기록이 쌓여요"
-          description="첫 PDF를 등록하고 한 개념을 나만의 말로 설명해 보세요."
+          description="첫 자료를 등록하고 한 개념을 나만의 말로 설명해 보세요."
           onCreate={onCreate}
         />
       )}

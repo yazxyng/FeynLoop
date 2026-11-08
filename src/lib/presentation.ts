@@ -17,6 +17,9 @@ export function completedCards(project: Project) {
 export function documentTitle(name: string) {
   return name.replace(/\.pdf$/i, "");
 }
+export function sourceReference(project: Project, page: number) {
+  return project.sourceType === "text" ? "텍스트 원문" : `p.${page}`;
+}
 export function studyProgress(study?: Study) {
   if (!study) return 0;
   return study.phase === "done"

@@ -235,6 +235,30 @@ export default function Workspace() {
         : "PDF를 읽고 데모 학습을 준비하고 있어요.",
     );
   }
+  async function importText(title: string, text: string) {
+    await run(
+      async () => {
+        if (!canStart)
+          throw new Error("학습 방식과 로그인을 먼저 확인해 주세요.");
+        const { project: created } = await api("/api/projects", {
+          source: "text",
+          title: title.trim() || "텍스트 학습",
+          text,
+          mode: learningMode,
+        });
+        accept(created);
+        open(created);
+        setNotice(
+          created.mode === "live"
+            ? "텍스트 분석을 마쳤어요. 학습할 개념을 선택해 주세요."
+            : "텍스트로 만든 데모 카드예요. 개념 이름을 확인해 주세요.",
+        );
+      },
+      learningMode === "live"
+        ? "Gemini가 텍스트에서 학습 개념을 찾고 있어요."
+        : "텍스트로 데모 학습을 준비하고 있어요.",
+    );
+  }
   async function persistEdits(selected: Project) {
     let latest = selected;
     for (const c of selected.concepts) {
@@ -471,6 +495,7 @@ export default function Workspace() {
               onLogin={() => setAuthOpen(true)}
               onChooseFile={() => uploadRef.current?.click()}
               onFile={(file) => void upload(file)}
+              onText={(title, text) => void importText(title, text)}
               onSample={() => void sampleProject()}
               onBack={() => navigate("dashboard")}
             />

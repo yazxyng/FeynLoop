@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import {
   ArrowLeft,
   ArrowUp,
@@ -9,6 +9,7 @@ import {
   Save,
 } from "lucide-react";
 import type { Concept, Project, Study } from "@/lib/types";
+import { sourceReference } from "@/lib/presentation";
 type Props = {
   project: Project;
   concept: Concept;
@@ -53,12 +54,12 @@ export default function StudyRoom({
     busy,
     pendingMessage,
   ]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (composer.current) {
       composer.current.style.height = "auto";
       composer.current.style.height = `${Math.min(composer.current.scrollHeight, 160)}px`;
     }
-  }, [study.draft]);
+  }, [study.draft, pendingMessage]);
   const phaseLabel = asking
     ? `질문 ${study.turns.length + 1} / 3`
     : reviewing
@@ -170,7 +171,7 @@ export default function StudyRoom({
                       }
                       onClick={() => onAction("evidence", { page })}
                     >
-                      관련 근거 p.{page}
+                      관련 근거 · {sourceReference(project, page)}
                       {study.evidenceViews.some((v) => v.page === page)
                         ? " · 확인함"
                         : ""}
@@ -179,13 +180,15 @@ export default function StudyRoom({
                 </div>
                 {study.evidence?.map((e) => (
                   <blockquote className="evidence-excerpt" key={e.page}>
-                    <small>문서 근거 p.{e.page}</small>
+                    <small>
+                      문서 근거 · {sourceReference(project, e.page)}
+                    </small>
                     <p>{e.text}</p>
                   </blockquote>
                 ))}
                 <p>
-                  페이지당 최대 650자만 보여줘요. 마지막 정리를 시작하면 다시
-                  숨겨져요.
+                  근거는 한 번에 최대 650자만 보여줘요. 마지막 정리를 시작하면
+                  다시 숨겨져요.
                 </p>
               </details>
               <button
@@ -287,7 +290,7 @@ export default function StudyRoom({
         <span>
           {project.mode === "demo"
             ? "데모 대화 · 실제 이해도 평가 없음"
-            : "PDF를 바탕으로 대화해요 · 원문은 숨겨져 있어요"}
+            : "등록한 자료를 바탕으로 대화해요 · 원문은 숨겨져 있어요"}
         </span>
         {!reviewing && (
           <button disabled={busy} onClick={onSave}>

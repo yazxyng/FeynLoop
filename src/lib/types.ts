@@ -48,6 +48,7 @@ export type Study = {
   attempt: number;
 };
 export type Project = {
+  sourceType?: "pdf" | "text";
   id: string;
   name: string;
   createdAt: string;

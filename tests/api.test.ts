@@ -291,7 +291,7 @@ test("API: 다른 사이트 요청과 용량 초과 입력 차단", async () => 
   );
   assert.equal(response.status, 403);
   const invalid = await create(
-    request("/api/projects", { sample: true, extra: "a".repeat(120) }),
+    request("/api/projects", { sample: true, extra: "a".repeat(20001) }),
   );
   assert.equal(invalid.status, 413);
 });

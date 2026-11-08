@@ -3406,3 +3406,28 @@ body:has(.dark-mode) {
 @media (prefers-reduced-motion: reduce) {
   .typing-bubble span { animation: none; opacity: .75; }
 }
+
+.source-switch {
+  display: inline-flex;
+  gap: 5px;
+  padding: 5px;
+  margin: 0 0 24px;
+  background: #e8eae3;
+  border-radius: 999px;
+}
+.source-switch button { padding: 11px 22px; border-radius: 999px; font-size: 13px; color: #767b6c; }
+.source-switch button[aria-pressed="true"] { background: #fff; color: #151712; box-shadow: 0 2px 6px #0001; font-weight: 600; }
+.text-source-form { display: flex; flex-direction: column; padding: 28px; border: 1px solid #e1e4d8; border-radius: 28px; background: #fff; min-width: 0; }
+.text-source-form label { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.text-source-form label span { font-size: 11px; color: #969c8d; font-weight: 400; margin-left: 7px; }
+.text-source-form input, .text-source-form textarea { border: 1px solid #dfe3d5; border-radius: 13px; padding: 14px; background: #fafbf7; color: #1d2118; font-size: 14px; width: 100%; }
+.text-source-form input { margin-bottom: 22px; }
+.text-source-form textarea { resize: vertical; min-height: 270px; line-height: 1.8; }
+.text-source-form input:focus, .text-source-form textarea:focus { outline: 2px solid #a9bf4b; outline-offset: 2px; }
+.text-source-help { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; color: #848a7a; margin: 12px 0 22px; font-size: 11px; }
+.text-source-help small { font-size: inherit; }
+@media (max-width: 600px) {
+  .text-source-form { padding: 20px; }
+  .source-switch { width: 100%; }
+  .source-switch button { flex: 1; padding: 11px; }
+}
