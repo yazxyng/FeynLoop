@@ -2606,3 +2606,21 @@ body:has(.dark-mode) {
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
 }
+
+@media (min-width: 761px) {
+  .view-study:not(:has(.deep-dive)) {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-block: 40px;
+  }
+
+  .view-study:not(:has(.deep-dive)) .page-content {
+    width: 100%;
+  }
+
+  .view-study:not(:has(.deep-dive)) .session-layout {
+    align-items: center;
+  }
+}
