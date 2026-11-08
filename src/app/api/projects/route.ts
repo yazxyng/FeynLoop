@@ -15,6 +15,7 @@ import { extractPdf, MAX_PDF_BYTES } from "@/lib/pdf";
 import { ApiError } from "@/lib/server/errors";
 import type { StoredProject, SourcePage } from "@/lib/server/models";
 export const runtime = "nodejs";
+export const maxDuration = 180;
 export async function GET(req: Request) {
   try {
     const id = await identity(req);

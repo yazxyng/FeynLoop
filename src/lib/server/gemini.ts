@@ -191,6 +191,14 @@ export async function generateGemini<T extends z.ZodType>(
     return schema.parse(JSON.parse(text));
   } catch (error) {
     if (error instanceof ApiError) throw error;
+    if (
+      error instanceof Error &&
+      ["TimeoutError", "AbortError"].includes(error.name)
+    )
+      throw new ApiError(
+        504,
+        "Gemini 응답을 끝까지 받지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      );
     throw new ApiError(
       502,
       "Gemini 응답 형식이 올바르지 않습니다. 설명을 유지한 채 다시 시도해 주세요.",

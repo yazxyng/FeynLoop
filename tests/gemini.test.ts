@@ -56,6 +56,21 @@ const resultSchema = z.object({
   count: z.number().int().default(1),
 });
 
+test("Gemini 헤더 수신 후 본문 읽기가 중단돼도 시간 초과로 안내한다", async (t) => {
+  environment(t);
+  t.mock.method(globalThis, "fetch", async () => ({
+    ok: true,
+    status: 200,
+    json: async () => {
+      throw new DOMException("private", "AbortError");
+    },
+  }));
+  await assert.rejects(
+    generateGemini("지시", {}, resultSchema),
+    (error) => (error as { status: number }).status === 504,
+  );
+});
+
 test("Gemini 요청: 공식 REST 주소·키 헤더·시스템 입력 분리·응답 스키마", async (t) => {
   environment(t);
   const fetch = t.mock.method(

@@ -9,6 +9,7 @@ import {
 import { loadProject } from "@/lib/server/store";
 import { present, execute, commandSchema } from "@/lib/server/learning";
 export const runtime = "nodejs";
+export const maxDuration = 180;
 type Context = { params: Promise<{ id: string }> };
 export async function GET(req: Request, context: Context) {
   try {

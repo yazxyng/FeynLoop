@@ -5,13 +5,14 @@ import {
   ChevronDown,
   Home,
   Layers,
-  Loader2,
   Plus,
   UserRound,
   X,
 } from "lucide-react";
 import { accountRequest } from "@/lib/account-client";
 import MyPage from "./screens/my-page";
+import ProcessingDialog from "./processing-dialog";
+import { workspaceRequest as api } from "@/lib/workspace-request";
 import { draftRecoveryKey, recoverDraft } from "@/lib/draft-recovery";
 import {
   newStudy,
@@ -84,24 +85,6 @@ export default function Workspace() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [view, projectId, conceptId]);
-  async function api(path: string, body?: unknown) {
-    const isForm = body instanceof FormData;
-    const res = await fetch(path, {
-      method: body === undefined ? "GET" : "POST",
-      cache: "no-store",
-      headers: {
-        ...(body !== undefined && !isForm
-          ? { "Content-Type": "application/json" }
-          : {}),
-      },
-      ...(body !== undefined
-        ? { body: isForm ? body : JSON.stringify(body) }
-        : {}),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "요청을 처리하지 못했습니다.");
-    return data;
-  }
   function selectMode(mode: LearningMode) {
     setLearningMode(mode);
     try {
@@ -324,16 +307,23 @@ export default function Workspace() {
   }
   async function submit() {
     if (!study.draft.trim()) return;
-    await run(async () => {
-      const key =
-        project && draftRecoveryKey(userId || "guest", project.id, study);
-      const p = await command("submit", { text: study.draft });
-      try {
-        if (key) sessionStorage.removeItem(key);
-      } catch {}
-      const s = p.studies[conceptId];
-      if (s.phase === "done") setView("result");
-    });
+    await run(
+      async () => {
+        const key =
+          project && draftRecoveryKey(userId || "guest", project.id, study);
+        const p = await command("submit", { text: study.draft });
+        try {
+          if (key) sessionStorage.removeItem(key);
+        } catch {}
+        const s = p.studies[conceptId];
+        if (s.phase === "done") setView("result");
+      },
+      project?.mode === "live"
+        ? study.phase === "rewrite"
+          ? "Gemini가 마지막 설명을 확인하고 학습 결과를 만들고 있어요."
+          : "Gemini가 설명을 읽고 다음 질문을 만들고 있어요."
+        : "데모 답변을 준비하고 있어요.",
+    );
   }
   const collection = collectionId
     ? projects.filter((p) => p.id === collectionId)
@@ -602,12 +592,7 @@ export default function Workspace() {
           })}
         </nav>
       )}
-      {busy && (
-        <div className="busy-indicator" role="status">
-          <Loader2 className="spin" size={17} />
-          {operation}
-        </div>
-      )}
+      {busy && <ProcessingDialog message={operation} />}
       {authOpen && (
         <PasswordLogin
           onClose={() => setAuthOpen(false)}
