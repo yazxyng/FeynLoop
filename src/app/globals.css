@@ -2624,3 +2624,141 @@ body:has(.dark-mode) {
     align-items: center;
   }
 }
+
+/* A selected concept stays in one conversation from the first message onward. */
+.study-chat {
+  height: calc(100dvh - 88px);
+  min-height: 420px;
+}
+.study-chat .deep-toolbar,
+.study-chat .deep-topic,
+.study-chat .deep-composer,
+.study-chat .chat-footer {
+  flex-shrink: 0;
+}
+.study-chat .deep-topic {
+  margin-bottom: 16px;
+}
+.study-chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #414145 transparent;
+  padding: 4px 6px 20px 0;
+}
+.study-chat-log .chat-speaker {
+  color: #d9f45c;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.study-chat-log .deep-bubble {
+  font-size: 14px;
+  line-height: 1.75;
+}
+.study-chat-log .user-bubble {
+  margin-top: 14px;
+}
+.study-chat .deep-composer {
+  position: static;
+  margin-top: 12px;
+  box-shadow: none;
+}
+.study-chat .deep-composer textarea {
+  resize: none;
+  overflow-y: auto;
+}
+.chat-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px 0;
+  color: #96969b;
+  font-size: 10px;
+}
+.chat-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.chat-evidence {
+  border: 1px solid #343438;
+  border-radius: 18px;
+  padding: 14px;
+  margin: 16px 0;
+}
+.chat-evidence summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #c1c1c5;
+}
+.chat-evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.chat-evidence-actions button {
+  border: 1px solid #414146;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.chat-evidence > p {
+  font-size: 11px;
+  color: #99999f;
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.chat-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--accent);
+  color: #151517;
+  border-radius: 999px;
+  padding: 14px 18px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.chat-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #a9aa9f;
+  font-size: 12px;
+  margin-top: 16px;
+}
+@media (max-width: 760px) {
+  .app-frame:has(.study-chat) {
+    padding-top: 24px;
+    padding-bottom: 20px;
+  }
+  .study-chat {
+    height: calc(100dvh - 44px);
+    min-height: 360px;
+  }
+}
+.view-study:has(.study-chat) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+.view-study:has(.study-chat) > .page-content {
+  flex: 1;
+  min-height: 0;
+}
+.view-study .study-chat {
+  height: 100%;
+  min-height: 0;
+}
+.study-chat .deep-topic > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
