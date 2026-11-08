@@ -361,10 +361,31 @@ test("Gemini 개념 추출·평가: 기존 근거 검증과 첫 설명·직전 �
       evidence: [{ ...feedback.evidence[0], quote: "문서에 전혀 없는 인용" }],
     }),
   );
-  await assert.rejects(
-    evaluate(sample.pages, concepts[0], study, "설명", true, false),
-    /근거/,
+  const uncertain = await evaluate(
+    sample.pages,
+    concepts[0],
+    study,
+    "설명",
+    true,
+    false,
   );
+  assert.deepEqual(uncertain.feedback.understood, []);
+  assert.deepEqual(uncertain.feedback.evidence, []);
+  assert.ok(
+    uncertain.feedback.unverified.some((item) => item.includes("미확인")),
+  );
+  assert.ok(uncertain.feedback.question.includes("원인과 결과"));
+  assert.ok(!uncertain.hints.includes("첫 단서"));
+  const finalUncertain = await evaluate(
+    sample.pages,
+    concepts[0],
+    study,
+    "재설명",
+    true,
+    true,
+  );
+  assert.equal(finalUncertain.feedback.question, "");
+  assert.ok(finalUncertain.feedback.change.includes("보류"));
 });
 
 test("짧은 PDF의 소수 개념은 허용하지만 빈 결과·10개 초과·없는 페이지는 거부한다", async (t) => {
