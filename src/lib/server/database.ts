@@ -11,5 +11,15 @@ export function database() {
     throw new ApiError(503, "서버 데이터베이스 설정이 필요합니다.");
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: (input, init) =>
+        fetch(input, {
+          ...init,
+          // 저장소 응답을 무한정 기다리며 화면이 멈추지 않도록 제한합니다.
+          signal: init?.signal
+            ? AbortSignal.any([init.signal, AbortSignal.timeout(20_000)])
+            : AbortSignal.timeout(20_000),
+        }),
+    },
   });
 }

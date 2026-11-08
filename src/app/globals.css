@@ -1721,23 +1721,42 @@ summary::-webkit-details-marker {
   border-color: #624036;
   color: #e2aa96;
 }
-.busy-indicator {
-  position: fixed;
-  bottom: 102px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - 40px);
-  background: #202220;
-  border: 1px solid #45493c;
-  color: #e1e6d2;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 20px;
-  border-radius: 999px;
-  font-size: 12px;
-  z-index: 45;
-  box-shadow: 0 5px 25px #0002;
+/* 업로드와 AI 학습 요청이 끝날 때까지 보이는 대기 창 */
+.processing-dialog {
+  margin: auto;
+  width: min(420px, calc(100% - 40px));
+  max-height: calc(100svh - 40px);
+  overflow: auto;
+  padding: 36px 30px;
+  border: 1px solid #e2e5d8;
+  border-radius: 30px;
+  background: #fafbf6;
+  color: #171916;
+  text-align: center;
+  box-shadow: 0 24px 90px #0003;
+}
+.processing-dialog::backdrop {
+  background: #12141180;
+  backdrop-filter: blur(5px);
+}
+.processing-icon {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 22px;
+  width: 66px;
+  height: 66px;
+  border-radius: 22px;
+  background: #d9f654;
+}
+.processing-eyebrow { font-size: 10px; letter-spacing: .16em; color: #767c60; }
+.processing-dialog h2 { font-size: 23px; margin: 8px 0 18px; }
+.processing-dialog p { line-height: 1.7; overflow-wrap: anywhere; }
+.processing-dialog [role="status"] { font-size: 15px; font-weight: 600; }
+.processing-time { margin: 22px 0; color: #717952; font-size: 13px; font-variant-numeric: tabular-nums; }
+.processing-help { color: #717568; font-size: 13px; }
+.processing-dialog small { display: block; margin-top: 18px; color: #8a8e82; font-size: 11px; line-height: 1.7; }
+@media (prefers-reduced-motion: reduce) {
+  .processing-dialog .spin { animation: none; }
 }
 .spin {
   animation: spin 1s linear infinite;
@@ -2185,10 +2204,6 @@ summary::-webkit-details-marker {
   .result-actions .btn {
     font-size: 14px;
     min-height: 54px;
-  }
-  .busy-indicator {
-    font-size: 11px;
-    padding: 12px 17px;
   }
   .modal {
     padding: 27px;
@@ -3353,4 +3368,41 @@ body:has(.dark-mode) {
   .bottom-nav > button {
     font-size: 11px;
   }
+}
+
+/* 채팅 응답은 대화 안에서 작성 중 말풍선으로 표시합니다. */
+.chat-typing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 24px;
+}
+.chat-typing .chat-speaker {
+  display: block;
+  margin-bottom: 8px;
+}
+.typing-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 42px;
+  padding: 16px 19px;
+  margin-bottom: 6px;
+}
+.typing-bubble span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b7bd9e;
+  animation: typing-pulse 1.25s ease-in-out infinite;
+}
+.typing-bubble span:nth-child(2) { animation-delay: .16s; }
+.typing-bubble span:nth-child(3) { animation-delay: .32s; }
+.typing-caption { display: block; color: #898d80; font-size: 11px; }
+@keyframes typing-pulse {
+  0%, 60%, 100% { opacity: .4; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing-bubble span { animation: none; opacity: .75; }
 }
