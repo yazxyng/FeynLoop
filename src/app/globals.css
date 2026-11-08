@@ -3452,7 +3452,7 @@ body:has(.dark-mode) {
 .records-subject-score { white-space: nowrap; }
 
 
-/* 공통 하단 메뉴: 기존 가로 배치를 유지하고 전환 애니메이션은 사용하지 않습니다. */
+/* 공통 하단 메뉴: 클릭한 메뉴에만 이름을 표시하고 흰 선택 배경만 슬라이드합니다. */
 .app-navigation {
   position: fixed;
   left: 50%;
@@ -3468,8 +3468,11 @@ body:has(.dark-mode) {
   background: #111113;
   box-shadow: 0 8px 25px #0000000a;
   z-index: 30;
+  isolation: isolate;
 }
 .app-navigation > a {
+  position: relative;
+  z-index: 1;
   flex: 1 1 0;
   display: flex;
   flex-direction: row;
@@ -3485,7 +3488,24 @@ body:has(.dark-mode) {
   transition: none;
 }
 .app-navigation > a svg { flex-shrink: 0; width: 21px; height: 21px; }
-.app-navigation > a.active { flex-grow: 1.3; background: #f6f6f1; color: #141416; }
+.app-navigation > a.active { flex-grow: 1.3; color: #141416; }
+.app-navigation[data-ready="false"] > a.active { background: #f6f6f1; }
+.navigation-highlight {
+  position: absolute;
+  top: 7px;
+  left: 0;
+  height: 50px;
+  border-radius: 999px;
+  background: #f6f6f1;
+  pointer-events: none;
+  z-index: 0;
+}
+.navigation-highlight[data-animate="true"] {
+  transition: transform 280ms cubic-bezier(.22,1,.36,1), width 280ms cubic-bezier(.22,1,.36,1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .navigation-highlight[data-animate="true"] { transition: none; }
+}
 .app-navigation .navigation-label { display: none; margin-left: 8px; white-space: nowrap; }
 .app-navigation > a.active { min-width: max-content; }
 .app-navigation > a.active .navigation-label { display: block; }

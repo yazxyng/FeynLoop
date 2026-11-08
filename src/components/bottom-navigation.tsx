@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChartNoAxesColumn, Home, Layers, Plus, UserRound } from "lucide-react";
 import {
@@ -29,10 +30,63 @@ export default function BottomNavigation() {
     setNotice,
   } = useWorkspace();
   const selected = view === "concepts" || view === "detail" ? "library" : view;
-  if (dark || !parseWorkspacePath(pathname) || (!userId && !demoAccess))
-    return null;
+  const hidden =
+    dark || !parseWorkspacePath(pathname) || (!userId && !demoAccess);
+  const navRef = useRef<HTMLElement>(null);
+  const [highlight, setHighlight] = useState<{
+    left: number;
+    width: number;
+    animate: boolean;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (hidden || !nav) {
+      setHighlight(null);
+      return;
+    }
+    // 버튼의 실제 위치를 측정해 흰 배경만 이동합니다. 이름은 선택 시 바로 표시합니다.
+    const measure = () => {
+      const link = nav.querySelector<HTMLAnchorElement>(
+        '[aria-current="page"]',
+      );
+      if (!link) return;
+      const box = link.getBoundingClientRect();
+      const left = box.left - nav.getBoundingClientRect().left;
+      setHighlight((previous) =>
+        previous &&
+        Math.abs(previous.left - left) < 0.1 &&
+        Math.abs(previous.width - box.width) < 0.1
+          ? previous
+          : { left, width: box.width, animate: previous !== null },
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    nav.querySelectorAll("a").forEach((link) => observer.observe(link));
+    return () => observer.disconnect();
+  }, [selected, hidden]);
+
+  if (hidden) return null;
   return (
-    <nav className="app-navigation" aria-label="주 메뉴">
+    <nav
+      ref={navRef}
+      className="app-navigation"
+      aria-label="주 메뉴"
+      data-ready={Boolean(highlight)}
+    >
+      {highlight && (
+        <span
+          className="navigation-highlight"
+          aria-hidden="true"
+          data-animate={highlight.animate}
+          style={{
+            width: highlight.width,
+            transform: `translateX(${highlight.left}px)`,
+          }}
+        />
+      )}
       {items.map((item) => (
         <Link
           key={item.view}
