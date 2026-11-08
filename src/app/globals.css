@@ -519,51 +519,12 @@ summary::-webkit-details-marker {
   font-size: 12px;
   padding: 0;
 }
-.bottom-nav {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: #111113;
-  border-radius: 999px;
-  padding: 7px;
-  width: min(470px, calc(100% - 48px));
-  height: 64px;
-  z-index: 30;
-  box-shadow: 0 8px 25px #0000000a;
-}
-.bottom-nav > :is(button, a) {
-  flex: 1;
-  min-width: 0;
-  height: 50px;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  color: #8b8b90;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 650;
-}
-.bottom-nav > :is(button, a).active {
-  flex: 1.5;
-  background: #f6f6f1;
-  color: #141416;
-}
-.bottom-nav > :is(button, a):not(.active) > span {
-  display: none;
-}
-.bottom-nav > :is(button, a).active > span {
-  display: inline;
-}
-.bottom-nav :is(button, a):focus-visible {
-  outline-color: var(--accent);
-  outline-offset: 1px;
-}
+
+
+
+
+
+
 .filter-chips {
   display: flex;
   align-items: center;
@@ -1875,12 +1836,8 @@ summary::-webkit-details-marker {
   margin-bottom: 16px;
 }
 @media (min-width: 850px) {
-  .bottom-nav > :is(button, a):not(.active) > span {
-    display: inline;
-  }
-  .bottom-nav {
-    width: 500px;
-  }
+
+
   .view-detail,
   .view-concepts {
     max-width: 1000px;
@@ -2216,10 +2173,7 @@ summary::-webkit-details-marker {
   .app-header {
     gap: 8px;
   }
-  .bottom-nav > :is(button, a) {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
+
   .app-frame {
     padding-left: 18px;
     padding-right: 18px;
@@ -2244,10 +2198,7 @@ summary::-webkit-details-marker {
     flex-wrap: wrap;
     gap: 6px;
   }
-  .bottom-nav {
-    width: calc(100% - 36px);
-    bottom: 18px;
-  }
+
   .result-deck-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3346,29 +3297,10 @@ body:has(.dark-mode) {
   outline: 3px solid #a5bc3c;
   outline-offset: 4px;
 }
-.bottom-nav > :is(button, a) > span {
-  white-space: nowrap;
-}
-@media (min-width: 850px) {
-  .bottom-nav {
-    width: 560px;
-  }
-}
-@media (max-width: 760px) {
-  .bottom-nav > :is(button, a) {
-    padding-inline: 8px;
-    gap: 5px;
-    font-size: 12px;
-  }
-  .bottom-nav > :is(button, a):last-child.active {
-    flex: 2.7;
-  }
-}
-@media (max-width: 360px) {
-  .bottom-nav > :is(button, a) {
-    font-size: 11px;
-  }
-}
+
+
+
+
 
 /* 채팅 응답은 대화 안에서 작성 중 말풍선으로 표시합니다. */
 .chat-typing {
@@ -3438,8 +3370,8 @@ body:has(.dark-mode) {
 .route-state button { border-radius: 999px; padding: 14px 22px; margin: 16px 5px 0; background: #d9f654; color: #151712; font-size: 13px; font-weight: 600; }
 .dark-mode .route-state { color: #aaafa1; }
 .dark-mode .route-state h1 { color: #f2f3ed; }
-.bottom-nav a { text-decoration: none; }
-.bottom-nav a[aria-disabled="true"] { opacity: .6; cursor: default; }
+
+
 
 /* 기록: 디자인 시안의 390px 화면 비율을 기준으로 맞춘 구성 */
 .app-frame.view-records { max-width: 780px; padding: 56px 24px 124px; }
@@ -3485,11 +3417,11 @@ body:has(.dark-mode) {
 .records-measurement-note { color: #93938f; font-size: 10px; line-height: 16px; margin-top: 12px; }
 .records-empty { min-height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 12px; color: #6a6a70; }
 .records-empty button { font-size: 12px; color: #151515; text-decoration: underline; text-underline-offset: 3px; }
-.bottom-nav.records-nav { width: min(684px, calc(100% - 48px)); height: 60px; padding: 6px; gap: 0; background: #111113; box-shadow: none; }
-.bottom-nav.records-nav > a { height: 48px; flex: 1; padding: 0; gap: 8px; }
-.bottom-nav.records-nav > a:not(.active) > span { display: none; }
-.bottom-nav.records-nav > a.active { flex: 0 0 80.5px; min-width: 80.5px; background: #f4f4f1; font-size: 13px; }
-.bottom-nav.records-nav svg { width: 20px; height: 20px; }
+
+
+
+
+
 @media (min-width: 700px) {
   .app-frame.view-records { padding-inline: 48px; }
   .records-header h1 { font-size: 28px; }
@@ -3508,13 +3440,105 @@ body:has(.dark-mode) {
   .records-subject-list > button { grid-template-columns: minmax(0,1fr) 25px 54px; gap: 8px; }
 }
 
-.records-nav a:nth-child(2) svg { transform: scaleX(-1); }
+
 
 /* 기록 그래프는 저장된 제출 횟수에 비례합니다. 0회인 막대는 높이도 0입니다. */
 .records-bar-plot { height: 102px; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
 .records-bar-plot .records-bar-value { margin-bottom: 5px; flex-shrink: 0; }
 .records-bar { width: 100%; border-radius: 8px 8px 0 0; background: #dcdcd6; flex-shrink: 0; }
 .records-bar-column.current .records-bar { background: #111113; }
-.bottom-nav.records-nav > a.active { flex: 0 0 76px; min-width: 76px; }
-.bottom-nav.records-nav > a:last-child.active { flex: 0 0 112px; min-width: 112px; }
+
+
 .records-subject-score { white-space: nowrap; }
+
+
+/* 공통 하단 메뉴: 선택은 URL에 따라 유지하고, 나머지 이름은 hover/focus 때만 표시합니다. */
+.app-navigation {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: min(560px, calc(100% - 48px));
+  height: 64px;
+  padding: 7px;
+  border-radius: 999px;
+  background: #111113;
+  box-shadow: 0 8px 25px #0000000a;
+  z-index: 30;
+  isolation: isolate;
+}
+.app-navigation > a {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 50px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #8e8e93;
+  font-size: 13px;
+  font-weight: 650;
+  transition: flex-grow 280ms cubic-bezier(.22,1,.36,1), color 180ms ease;
+}
+.app-navigation > a svg { flex-shrink: 0; width: 21px; height: 21px; }
+.app-navigation > a.active { flex-grow: 1.3; color: #141416; }
+.app-navigation .navigation-label {
+  display: block;
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: max-width 280ms cubic-bezier(.22,1,.36,1), margin-left 280ms cubic-bezier(.22,1,.36,1), opacity 180ms ease, transform 280ms ease;
+}
+.app-navigation > a:is(.active, :focus-visible) .navigation-label { max-width: 100px; margin-left: 8px; opacity: 1; transform: translateX(0); }
+.app-navigation > a:focus-visible { flex-grow: 1.3; outline-color: var(--accent); outline-offset: 0; }
+.app-navigation > a[aria-disabled="true"] { cursor: default; opacity: .5; }
+.navigation-indicator {
+  position: absolute;
+  left: 0;
+  top: 7px;
+  height: 50px;
+  border-radius: 999px;
+  background: #f6f6f1;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  will-change: transform, width;
+}
+.navigation-indicator[data-animate="true"] { transition: transform 320ms cubic-bezier(.22,1,.36,1), width 320ms cubic-bezier(.22,1,.36,1); }
+.app-navigation[data-ready="false"] .navigation-indicator { opacity: 0; }
+.app-navigation[data-ready="false"] > a.active { background: #f6f6f1; }
+@media (hover: hover) and (pointer: fine) {
+  .app-navigation > a:hover { flex-grow: 1.3; }
+  .app-navigation > a:not(.active):hover { color: #f2f2ed; }
+  .app-navigation > a:hover .navigation-label { max-width: 100px; margin-left: 8px; opacity: 1; transform: translateX(0); }
+}
+@media (max-width: 760px) {
+  .app-navigation > a { padding-inline: 6px; font-size: 12px; }
+  .app-navigation > a.active { flex-grow: 1.9; }
+}
+@media (max-width: 360px) {
+  .app-navigation > a { padding-inline: 4px; font-size: 11px; }
+  .app-navigation > a.active { flex-grow: 2.7; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-navigation > a, .app-navigation .navigation-label, .navigation-indicator[data-animate="true"] { transition: none; }
+}
+.app-navigation > a:is(.active, :focus-visible) { min-width: max-content; }
+@media (hover: hover) and (pointer: fine) {
+  .app-navigation > a:hover { min-width: max-content; }
+}
+@media (max-width: 360px) {
+  .app-navigation > a:is(.active, :focus-visible) .navigation-label { margin-left: 6px; }
+}
+@media (max-width: 360px) and (hover: hover) and (pointer: fine) {
+  .app-navigation > a:hover .navigation-label { margin-left: 6px; }
+}

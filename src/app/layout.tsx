@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { WorkspaceProvider } from "@/components/workspace-provider";
+import BottomNavigation from "@/components/bottom-navigation";
 export const metadata: Metadata = {
   title: "FeynLoop",
 };
@@ -12,7 +13,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <WorkspaceProvider>{children}</WorkspaceProvider>
+        <WorkspaceProvider>
+          {children}
+          <BottomNavigation />
+        </WorkspaceProvider>
       </body>
     </html>
   );

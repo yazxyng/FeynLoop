@@ -1,21 +1,7 @@
 "use client";
-import Link from "next/link";
 import { useWorkspace } from "./workspace-provider";
-import {
-  workspacePath,
-  type View,
-  type WorkspaceRoute,
-} from "@/lib/workspace-routes";
-import {
-  ChartNoAxesColumn,
-  Copy,
-  ChevronDown,
-  Home,
-  Layers,
-  Plus,
-  UserRound,
-  X,
-} from "lucide-react";
+import { workspacePath, type WorkspaceRoute } from "@/lib/workspace-routes";
+import { ChevronDown, UserRound, X } from "lucide-react";
 import { accountRequest } from "@/lib/account-client";
 import MyPage from "./screens/my-page";
 import ProcessingDialog from "./processing-dialog";
@@ -382,63 +368,6 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
           )}
         </div>
       </main>
-      {!dark && (
-        <nav
-          className={`bottom-nav ${view === "records" ? "records-nav" : ""}`}
-          aria-label="주 메뉴"
-        >
-          {[
-            { view: "dashboard" as View, label: "오늘", icon: Home },
-            { view: "library" as View, label: "카드함", icon: Layers },
-            { view: "upload" as View, label: "등록", icon: Plus },
-            { view: "records" as View, label: "기록", icon: ChartNoAxesColumn },
-            { view: "profile" as View, label: "마이페이지", icon: UserRound },
-          ].map((item) => {
-            const selected =
-              view === item.view ||
-              (item.view === "library" &&
-                ["concepts", "detail"].includes(view));
-            return (
-              <Link
-                href={workspacePath({ view: item.view })}
-                key={item.view}
-                className={selected ? "active" : ""}
-                aria-current={selected ? "page" : undefined}
-                aria-label={item.label}
-                aria-disabled={busy || undefined}
-                onClick={(event) => {
-                  if (busy) event.preventDefault();
-                  else {
-                    setError("");
-                    setNotice("");
-                  }
-                }}
-              >
-                {view === "records" && item.view === "dashboard" ? (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M3 10 12 3 21 10V21H3Z"
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                ) : view === "records" && item.view === "library" ? (
-                  <Copy size={21} />
-                ) : (
-                  <item.icon size={21} />
-                )}
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      )}
       {activeOperation && busyPresentation === "dialog" && (
         <ProcessingDialog message={operation} />
       )}
