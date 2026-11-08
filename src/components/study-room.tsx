@@ -14,6 +14,9 @@ type Props = {
   concept: Concept;
   study: Study;
   busy: boolean;
+  typing: boolean;
+  pendingMessage: string | null;
+  statusMessage: string;
   onDraft: (text: string) => void;
   onSubmit: () => void;
   onAction: (action: string, extra?: Record<string, unknown>) => void;
@@ -25,6 +28,9 @@ export default function StudyRoom({
   concept,
   study,
   busy,
+  typing,
+  pendingMessage,
+  statusMessage,
   onDraft,
   onSubmit,
   onAction,
@@ -44,6 +50,8 @@ export default function StudyRoom({
     study.turns.length,
     study.hints.length,
     study.evidence?.length,
+    busy,
+    pendingMessage,
   ]);
   useEffect(() => {
     if (composer.current) {
@@ -115,7 +123,7 @@ export default function StudyRoom({
             <p className="deep-bubble user-bubble">{turn.answer}</p>
           </article>
         ))}
-        <div ref={latest} className="deep-current">
+        <div className="deep-current">
           {asking && (
             <>
               <h2 className="chat-speaker">
@@ -199,13 +207,38 @@ export default function StudyRoom({
               </p>
             </>
           )}
-          {busy && (
+          {pendingMessage !== null && (
+            <p className="deep-bubble user-bubble">{pendingMessage}</p>
+          )}
+          {typing && (
+            <div
+              className="chat-typing"
+              role="status"
+              aria-label="짝꿍 AI가 답변을 작성하고 있어요"
+            >
+              <span className="chat-speaker" aria-hidden="true">
+                짝꿍 AI
+              </span>
+              <div
+                className="deep-bubble ai-bubble typing-bubble"
+                aria-hidden="true"
+              >
+                <span />
+                <span />
+                <span />
+              </div>
+              <span className="typing-caption" aria-hidden="true">
+                답변 작성 중
+              </span>
+            </div>
+          )}
+          {busy && !typing && (
             <p className="chat-thinking" role="status">
-              <Loader2 size={14} className="spin" />
-              생각을 읽고 있어요…
+              {statusMessage}
             </p>
           )}
         </div>
+        <div ref={latest} aria-hidden="true" />
       </div>
       {!reviewing && (
         <form
@@ -221,7 +254,7 @@ export default function StudyRoom({
             placeholder={
               rewriting ? "내 말로 정리해 볼게…" : "내 생각을 말해 봐…"
             }
-            value={study.draft}
+            value={pendingMessage !== null ? "" : study.draft}
             disabled={busy}
             maxLength={15000}
             rows={1}

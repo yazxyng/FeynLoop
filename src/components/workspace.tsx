@@ -51,6 +51,10 @@ export default function Workspace() {
     [projectId, setProjectId] = useState(""),
     [conceptId, setConceptId] = useState(""),
     [busy, setBusy] = useState(false),
+    [busyPresentation, setBusyPresentation] = useState<
+      "dialog" | "reply" | "inline"
+    >("dialog"),
+    [pendingMessage, setPendingMessage] = useState<string | null>(null),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
@@ -179,10 +183,14 @@ export default function Workspace() {
   async function run(
     task: () => Promise<void>,
     label = "처리 중입니다. 잠시만 기다려 주세요.",
+    presentation: "dialog" | "reply" | "inline" = view === "study"
+      ? "inline"
+      : "dialog",
   ) {
     if (running.current) return;
     running.current = true;
     setOperation(label);
+    setBusyPresentation(presentation);
     setBusy(true);
     setError("");
     setNotice("");
@@ -306,23 +314,29 @@ export default function Workspace() {
     );
   }
   async function submit() {
-    if (!study.draft.trim()) return;
+    if (!study.draft.trim() || running.current) return;
     await run(
       async () => {
-        const key =
-          project && draftRecoveryKey(userId || "guest", project.id, study);
-        const p = await command("submit", { text: study.draft });
+        setPendingMessage(study.draft);
         try {
-          if (key) sessionStorage.removeItem(key);
-        } catch {}
-        const s = p.studies[conceptId];
-        if (s.phase === "done") setView("result");
+          const key =
+            project && draftRecoveryKey(userId || "guest", project.id, study);
+          const p = await command("submit", { text: study.draft });
+          try {
+            if (key) sessionStorage.removeItem(key);
+          } catch {}
+          const s = p.studies[conceptId];
+          if (s.phase === "done") setView("result");
+        } finally {
+          setPendingMessage(null);
+        }
       },
       project?.mode === "live"
         ? study.phase === "rewrite"
           ? "Gemini가 마지막 설명을 확인하고 학습 결과를 만들고 있어요."
           : "Gemini가 설명을 읽고 다음 질문을 만들고 있어요."
         : "데모 답변을 준비하고 있어요.",
+      "reply",
     );
   }
   const collection = collectionId
@@ -495,6 +509,9 @@ export default function Workspace() {
                 concept={concept}
                 study={study}
                 busy={busy}
+                typing={busy && busyPresentation === "reply"}
+                pendingMessage={pendingMessage}
+                statusMessage={operation}
                 onDraft={(text) => {
                   patchStudy({ ...study, draft: text });
                   try {
@@ -506,12 +523,18 @@ export default function Workspace() {
                 }}
                 onSubmit={() => void submit()}
                 onAction={(action, extra) =>
-                  void run(async () => {
-                    await command(action, {
-                      ...extra,
-                      ...(action === "hint" ? { text: study.draft } : {}),
-                    });
-                  })
+                  void run(
+                    async () => {
+                      await command(action, {
+                        ...extra,
+                        ...(action === "hint" ? { text: study.draft } : {}),
+                      });
+                    },
+                    action === "hint"
+                      ? "힌트를 준비하고 있어요."
+                      : "대화를 업데이트하고 있어요.",
+                    action === "hint" ? "reply" : "inline",
+                  )
                 }
                 onSave={() =>
                   void run(async () => {
@@ -592,7 +615,9 @@ export default function Workspace() {
           })}
         </nav>
       )}
-      {busy && <ProcessingDialog message={operation} />}
+      {busy && busyPresentation === "dialog" && (
+        <ProcessingDialog message={operation} />
+      )}
       {authOpen && (
         <PasswordLogin
           onClose={() => setAuthOpen(false)}

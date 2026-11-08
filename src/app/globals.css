@@ -3369,3 +3369,31 @@ body:has(.dark-mode) {
     font-size: 11px;
   }
 }
+
+/* 채팅 응답은 대화 안에서 작성 중 말풍선으로 표시합니다. */
+.chat-typing { margin-top: 24px; }
+.typing-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 42px;
+  padding: 16px 19px;
+  margin-bottom: 6px;
+}
+.typing-bubble span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b7bd9e;
+  animation: typing-pulse 1.25s ease-in-out infinite;
+}
+.typing-bubble span:nth-child(2) { animation-delay: .16s; }
+.typing-bubble span:nth-child(3) { animation-delay: .32s; }
+.typing-caption { display: block; color: #898d80; font-size: 11px; }
+@keyframes typing-pulse {
+  0%, 60%, 100% { opacity: .4; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing-bubble span { animation: none; opacity: .75; }
+}
