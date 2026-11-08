@@ -22,7 +22,7 @@ function failure(error: { code?: string; status?: number } | null) {
     throw new Error("요청이 많습니다. 잠시 후 다시 시도해 주세요.");
   if (error.code === "invalid_credentials")
     throw new Error(
-      "이메일 또는 비밀번호를 확인해 주세요. 예전에 인증번호로 가입했다면 ‘비밀번호 설정·찾기’를 이용해 주세요.",
+      "이메일 또는 비밀번호를 확인해 주세요. 예전에 인증번호로 가입했다면 ‘비밀번호 재설정하기’를 이용해 주세요.",
     );
   if (error.code === "email_not_confirmed")
     throw new Error(

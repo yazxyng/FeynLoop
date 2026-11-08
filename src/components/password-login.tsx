@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { Eye, EyeOff, LockKeyhole, Loader2, X } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { LockKeyhole, Loader2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { verifyEmailCode, validEmailCode } from "@/lib/email-otp";
 import {
@@ -10,161 +10,222 @@ import {
   saveNewPassword,
 } from "@/lib/password-auth";
 import { Button } from "./ui/button";
-type Stage = "login" | "signup" | "confirm" | "reset" | "update";
+import LoginFooter from "./auth/login-footer";
+import PasswordField from "./auth/password-field";
+import {
+  LOGIN_COPY,
+  RESET_COOLDOWN_SECONDS,
+  type LoginStep,
+} from "./auth/login-copy";
+
+type PasswordLoginProps = {
+  onClose: () => void;
+  onSuccess: () => void;
+  recovery?: boolean;
+};
+
 export default function PasswordLogin({
   onClose,
   onSuccess,
   recovery = false,
-}: {
-  onClose: () => void;
-  onSuccess: () => void;
-  recovery?: boolean;
-}) {
-  const [stage, setStage] = useState<Stage>(recovery ? "update" : "login");
+}: PasswordLoginProps) {
+  // 1. 화면 상태와 입력값
+  const [step, setStep] = useState<LoginStep>(recovery ? "update" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [token, setToken] = useState("");
-  const [visible, setVisible] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [resendAt, setResendAt] = useState(0);
-  const [seconds, setSeconds] = useState(0);
-  const lock = useRef(false),
-    dialogRef = useRef<HTMLElement>(null);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isPasswordVisible, setPasswordVisible] = useState(false);
+  const [isBusy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [noticeMessage, setNoticeMessage] = useState("");
+  const [resendAvailableAt, setResendAvailableAt] = useState(0);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const requestInProgress = useRef(false);
+  const dialogRef = useRef<HTMLElement>(null);
+
+  const copy = LOGIN_COPY[step];
+  const isNewPassword = step === "signup" || step === "update";
+  const showPassword = step === "login" || isNewPassword;
+  const isResetCoolingDown = step === "reset" && cooldownSeconds > 0;
+  const isConfirmationIncomplete =
+    step === "confirm" && !validEmailCode(verificationCode);
+  const submitDisabled =
+    isBusy || isResetCoolingDown || isConfirmationIncomplete;
+  const description = supabase
+    ? copy.description.replace("{email}", email)
+    : "로그인 설정이 필요합니다. 지금은 데모로 학습할 수 있어요.";
+  const submitLabel = isResetCoolingDown
+    ? `${cooldownSeconds}초 후 재전송`
+    : copy.submitLabel;
+
+  // 2. 포커스 이동과 메일 재전송 대기 시간
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    return () => previous?.focus();
+    const previousFocus = document.activeElement as HTMLElement | null;
+    return () => previousFocus?.focus();
   }, []);
+
   useEffect(() => {
-    if (recovery) {
-      setStage("update");
-      setPassword("");
-      setConfirmation("");
-      setError("");
-      setNotice("");
-    }
-  }, [recovery]);
-  useEffect(() => {
-    dialogRef.current?.querySelector<HTMLInputElement>("input")?.focus();
-  }, [stage]);
-  useEffect(() => {
-    if (!resendAt) return;
-    const tick = () =>
-      setSeconds(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [resendAt]);
-  function change(next: Stage) {
-    setStage(next);
+    if (!recovery) return;
+    setStep("update");
     setPassword("");
     setConfirmation("");
-    setToken("");
-    setError("");
-    setNotice("");
-    setVisible(false);
+    setErrorMessage("");
+    setNoticeMessage("");
+  }, [recovery]);
+
+  useEffect(() => {
+    dialogRef.current
+      ?.querySelector<HTMLInputElement>("input:not([disabled])")
+      ?.focus();
+  }, [step]);
+
+  useEffect(() => {
+    if (!resendAvailableAt) return;
+    function updateCooldown() {
+      const remaining = Math.ceil((resendAvailableAt - Date.now()) / 1000);
+      setCooldownSeconds(Math.max(0, remaining));
+    }
+    updateCooldown();
+    const timer = setInterval(updateCooldown, 1000);
+    return () => clearInterval(timer);
+  }, [resendAvailableAt]);
+
+  function changeStep(nextStep: LoginStep) {
+    setStep(nextStep);
+    setPassword("");
+    setConfirmation("");
+    setVerificationCode("");
+    setErrorMessage("");
+    setNoticeMessage("");
+    setPasswordVisible(false);
   }
-  async function submit() {
-    if (!supabase || lock.current) return;
-    lock.current = true;
+
+  // 3. 화면별 처리. Supabase 요청과 오류 변환은 lib/password-auth.ts에 있습니다.
+  async function handleLogin() {
+    if (!supabase) return;
+    await loginWithPassword(supabase.auth, email, password);
+    setPassword("");
+    onSuccess();
+  }
+
+  async function handleSignup() {
+    if (!supabase) return;
+    const result = await registerWithPassword(
+      supabase.auth,
+      email,
+      password,
+      confirmation,
+    );
+    setEmail(result.email);
+    setPassword("");
+    setConfirmation("");
+    if (result.confirmed) {
+      onSuccess();
+      return;
+    }
+    setStep("confirm");
+    setNoticeMessage(
+      "가입 확인 메일을 요청했어요. 메일에 적힌 인증번호를 입력해 주세요. 이메일 인증은 최초 가입 때만 필요해요.",
+    );
+  }
+
+  async function handleConfirmation() {
+    if (!supabase) return;
+    await verifyEmailCode(supabase.auth, email, verificationCode);
+    setVerificationCode("");
+    onSuccess();
+  }
+
+  async function handleResetRequest() {
+    if (!supabase || cooldownSeconds > 0) return;
+    await requestPasswordReset(supabase.auth, email, window.location.origin);
+    setCooldownSeconds(RESET_COOLDOWN_SECONDS);
+    setResendAvailableAt(Date.now() + RESET_COOLDOWN_SECONDS * 1000);
+    setNoticeMessage(
+      "해당 이메일의 계정이 있다면 비밀번호 설정 메일이 도착해요. 메일의 링크를 열어 새 비밀번호를 설정해 주세요.",
+    );
+  }
+
+  async function handlePasswordUpdate() {
+    if (!supabase) return;
+    await saveNewPassword(supabase.auth, password, confirmation);
+    setPassword("");
+    setConfirmation("");
+    onSuccess();
+  }
+
+  async function handleSubmit() {
+    if (!supabase || requestInProgress.current || submitDisabled) return;
+    requestInProgress.current = true;
     setBusy(true);
-    setError("");
-    setNotice("");
+    setErrorMessage("");
+    setNoticeMessage("");
     try {
-      if (stage === "login") {
-        await loginWithPassword(supabase.auth, email, password);
-        setPassword("");
-        onSuccess();
-      } else if (stage === "signup") {
-        const result = await registerWithPassword(
-          supabase.auth,
-          email,
-          password,
-          confirmation,
-        );
-        setEmail(result.email);
-        setPassword("");
-        setConfirmation("");
-        if (result.confirmed) onSuccess();
-        else {
-          setStage("confirm");
-          setNotice(
-            "가입 확인 메일을 요청했어요. 메일에 적힌 인증번호를 입력해 주세요. 이메일 인증은 최초 가입 때만 필요해요.",
-          );
-        }
-      } else if (stage === "confirm") {
-        await verifyEmailCode(supabase.auth, email, token);
-        setToken("");
-        onSuccess();
-      } else if (stage === "reset") {
-        if (seconds > 0) return;
-        await requestPasswordReset(
-          supabase.auth,
-          email,
-          window.location.origin,
-        );
-        setResendAt(Date.now() + 60000);
-        setNotice(
-          "해당 이메일의 계정이 있다면 비밀번호 설정 메일이 도착해요. 메일의 링크를 열어 새 비밀번호를 설정해 주세요.",
-        );
-      } else {
-        await saveNewPassword(supabase.auth, password, confirmation);
-        setPassword("");
-        setConfirmation("");
-        onSuccess();
+      switch (step) {
+        case "login":
+          await handleLogin();
+          break;
+        case "signup":
+          await handleSignup();
+          break;
+        case "confirm":
+          await handleConfirmation();
+          break;
+        case "reset":
+          await handleResetRequest();
+          break;
+        case "update":
+          await handlePasswordUpdate();
+          break;
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "인증을 완료하지 못했습니다.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "인증을 완료하지 못했습니다.",
+      );
     } finally {
-      lock.current = false;
+      requestInProgress.current = false;
       setBusy(false);
     }
   }
-  const newPassword = stage === "signup" || stage === "update";
-  const title = {
-    login: "다시 만나 반가워요",
-    signup: "나만의 학습 공간 만들기",
-    confirm: "이메일을 확인해 주세요",
-    reset: "비밀번호 설정·찾기",
-    update: "새 비밀번호를 정해 주세요",
-  }[stage];
+
+  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape" && !isBusy) {
+      event.preventDefault();
+      onClose();
+    }
+    if (event.key !== "Tab") return;
+    const controls = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), input:not([disabled]), a[href]",
+      ) || [],
+    );
+    const firstControl = controls[0];
+    const lastControl = controls.at(-1);
+    if (event.shiftKey && document.activeElement === firstControl) {
+      event.preventDefault();
+      lastControl?.focus();
+    } else if (!event.shiftKey && document.activeElement === lastControl) {
+      event.preventDefault();
+      firstControl?.focus();
+    }
+  }
+
+  // 4. 화면 배치. 하단 링크 배치는 auth/login-footer.tsx에서 수정합니다.
   return (
     <div className="modal-backdrop">
       <section
-        className="modal email-login password-login"
+        className="modal password-login"
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="login-title"
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && !busy) {
-            event.preventDefault();
-            onClose();
-          }
-          if (event.key === "Tab") {
-            const controls = Array.from(
-              dialogRef.current?.querySelectorAll<HTMLElement>(
-                "button:not([disabled]), input:not([disabled]), a[href]",
-              ) || [],
-            );
-            const first = controls[0],
-              last = controls.at(-1);
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault();
-              last?.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault();
-              first?.focus();
-            }
-          }
-        }}
+        onKeyDown={handleDialogKeyDown}
       >
         <button
           className="modal-close"
           aria-label="닫기"
-          disabled={busy}
+          disabled={isBusy}
           onClick={onClose}
         >
           <X size={18} />
@@ -172,38 +233,27 @@ export default function PasswordLogin({
         <span className="login-symbol">
           <LockKeyhole size={24} />
         </span>
-        <h2 id="login-title">{title}</h2>
-        <p>
-          {!supabase
-            ? "로그인 설정이 필요합니다. 지금은 데모로 학습할 수 있어요."
-            : stage === "login"
-              ? "이메일과 비밀번호로 바로 로그인하세요. 이 브라우저에서는 로그인 상태가 유지돼요."
-              : stage === "signup"
-                ? "처음 한 번 이메일을 확인하면, 다음부터는 비밀번호로 로그인해요."
-                : stage === "reset"
-                  ? "전에 인증번호로 가입했어도 같은 이메일로 비밀번호를 만들 수 있어요. 기존 학습 기록은 그대로 유지돼요."
-                  : stage === "confirm"
-                    ? `${email} 메일의 인증번호를 입력해 주세요.`
-                    : "다음부터는 메일을 받지 않고 이 비밀번호로 로그인할 수 있어요."}
-        </p>
-        {error && (
+        <h2 id="login-title">{copy.title}</h2>
+        <p>{description}</p>
+        {errorMessage && (
           <div className="login-alert error" role="alert">
-            {error}
+            {errorMessage}
           </div>
         )}
-        {notice && (
+        {noticeMessage && (
           <div className="login-alert" role="status">
-            {notice}
+            {noticeMessage}
           </div>
         )}
+
         {supabase && (
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void submit();
+              void handleSubmit();
             }}
           >
-            {stage !== "update" && (
+            {step !== "update" && (
               <>
                 <label htmlFor="login-email">이메일</label>
                 <input
@@ -212,67 +262,45 @@ export default function PasswordLogin({
                   autoComplete="email"
                   required
                   maxLength={254}
-                  disabled={busy || stage === "confirm"}
+                  disabled={isBusy || step === "confirm"}
                   placeholder="name@example.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
               </>
             )}
-            {(stage === "login" || newPassword) && (
-              <>
-                <label htmlFor="login-password">
-                  {newPassword ? "새 비밀번호" : "비밀번호"}
-                </label>
-                <div className="password-field">
-                  <input
-                    id="login-password"
-                    type={visible ? "text" : "password"}
-                    autoComplete={
-                      newPassword ? "new-password" : "current-password"
-                    }
-                    required
-                    minLength={newPassword ? 8 : 1}
-                    maxLength={72}
-                    disabled={busy}
-                    placeholder={
-                      newPassword
-                        ? "8자 이상 입력해 주세요"
-                        : "비밀번호를 입력해 주세요"
-                    }
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                  />
-                  <button
-                    type="button"
-                    aria-label={visible ? "비밀번호 숨기기" : "비밀번호 보기"}
-                    aria-pressed={visible}
-                    disabled={busy}
-                    onClick={() => setVisible(!visible)}
-                  >
-                    {visible ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </>
+            {showPassword && (
+              <PasswordField
+                id="login-password"
+                label={isNewPassword ? "새 비밀번호" : "비밀번호"}
+                value={password}
+                onChange={setPassword}
+                isVisible={isPasswordVisible}
+                isDisabled={isBusy}
+                isNewPassword={isNewPassword}
+                placeholder={
+                  isNewPassword
+                    ? "8자 이상 입력해 주세요"
+                    : "비밀번호를 입력해 주세요"
+                }
+                onToggleVisibility={() =>
+                  setPasswordVisible(!isPasswordVisible)
+                }
+              />
             )}
-            {newPassword && (
-              <>
-                <label htmlFor="login-confirmation">비밀번호 확인</label>
-                <input
-                  id="login-confirmation"
-                  type={visible ? "text" : "password"}
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  maxLength={72}
-                  disabled={busy}
-                  placeholder="한 번 더 입력해 주세요"
-                  value={confirmation}
-                  onChange={(event) => setConfirmation(event.target.value)}
-                />
-              </>
+            {isNewPassword && (
+              <PasswordField
+                id="login-confirmation"
+                label="비밀번호 확인"
+                value={confirmation}
+                onChange={setConfirmation}
+                isVisible={isPasswordVisible}
+                isDisabled={isBusy}
+                isNewPassword
+                placeholder="한 번 더 입력해 주세요"
+              />
             )}
-            {stage === "confirm" && (
+            {step === "confirm" && (
               <>
                 <label htmlFor="login-code">가입 확인 인증번호</label>
                 <input
@@ -283,77 +311,32 @@ export default function PasswordLogin({
                   required
                   pattern="[0-9]{6,10}"
                   maxLength={10}
-                  disabled={busy}
-                  value={token}
+                  disabled={isBusy}
+                  value={verificationCode}
                   onChange={(event) =>
-                    setToken(event.target.value.replace(/\s/g, ""))
+                    setVerificationCode(event.target.value.replace(/\s/g, ""))
                   }
                 />
               </>
             )}
-            <Button
-              disabled={
-                busy ||
-                (stage === "confirm" && !validEmailCode(token)) ||
-                (stage === "reset" && seconds > 0)
-              }
-            >
-              {busy ? (
+            <Button disabled={submitDisabled}>
+              {isBusy ? (
                 <>
                   <Loader2 className="spin" size={15} />
                   처리 중
                 </>
               ) : (
-                {
-                  login: "로그인",
-                  signup: "회원가입",
-                  confirm: "인증하고 시작하기",
-                  reset:
-                    seconds > 0
-                      ? `${seconds}초 후 재전송`
-                      : "비밀번호 설정 메일 받기",
-                  update: "비밀번호 저장",
-                }[stage]
+                submitLabel
               )}
             </Button>
           </form>
         )}
-        <div className="login-actions">
-          {stage === "login" ? (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={() => change("reset")}
-              >
-                비밀번호 설정·찾기
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={() => change("signup")}
-              >
-                처음이에요 · 회원가입
-              </Button>
-            </>
-          ) : (
-            stage !== "update" && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={() => change("login")}
-              >
-                로그인으로 돌아가기
-              </Button>
-            )
-          )}
-        </div>
-        <Button variant="ghost" disabled={busy} onClick={onClose}>
-          학습 공간으로 돌아가기
-        </Button>
+        <LoginFooter
+          step={step}
+          isBusy={isBusy}
+          onChangeStep={changeStep}
+          onClose={onClose}
+        />
       </section>
     </div>
   );

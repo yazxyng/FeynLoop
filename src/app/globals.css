@@ -1848,13 +1848,6 @@ summary::-webkit-details-marker {
   color: #a56c53;
   border-color: #e8cdbb;
 }
-.login-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
 .login-help {
   display: block;
   color: #93958a;
@@ -2553,9 +2546,6 @@ body:has(.dark-mode) {
   height: 34px;
   color: #787a71;
 }
-.password-login .login-actions {
-  margin-top: 8px;
-}
 .password-login {
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
@@ -2715,4 +2705,32 @@ body:has(.dark-mode) {
 .study-chat .deep-topic > span:first-child {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 로그인 하단 링크: 왼쪽 시작선과 간격을 이곳에서 조정합니다. */
+.login-footer {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+.login-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.login-link {
+  width: fit-content;
+  min-height: 28px;
+  padding: 0;
+  text-align: left;
+  color: #787a70;
+  font-size: 12px;
+  font-weight: 500;
+}
+.login-link:hover:not(:disabled) {
+  color: #141416;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
