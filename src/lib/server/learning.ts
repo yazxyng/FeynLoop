@@ -85,6 +85,7 @@ export function present(
     const concept = project.concepts.find((c) => c.id === id);
     studies[id] = {
       conceptId: s.conceptId,
+      ...(s.completedAt ? { completedAt: s.completedAt } : {}),
       first: s.first,
       final: s.final,
       turns: s.turns.map((t) => ({
@@ -194,6 +195,7 @@ export async function applyCommand(record: StoredProject, command: Command) {
       if (final) {
         s.final = text;
         s.phase = "done";
+        s.completedAt = new Date().toISOString();
       } else s.phase = s.turns.length === 3 ? "review" : "questions";
       break;
     }

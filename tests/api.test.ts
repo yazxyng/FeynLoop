@@ -214,6 +214,7 @@ test("API: 원문 비공개·사용자 격리·단계 검증·중복 방지·기
     );
     await command("submit", { text: "최종 설명입니다" });
     assert.equal(p.studies[cid].phase, "done");
+    assert.ok(!Number.isNaN(Date.parse(p.studies[cid].completedAt)));
     assert.ok(p.studies[cid].initialFeedback);
     assert.ok(p.studies[cid].result);
     assert.equal(p.studies[cid].turns.length, 3);

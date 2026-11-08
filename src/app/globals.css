@@ -3440,3 +3440,72 @@ body:has(.dark-mode) {
 .dark-mode .route-state h1 { color: #f2f3ed; }
 .bottom-nav a { text-decoration: none; }
 .bottom-nav a[aria-disabled="true"] { opacity: .6; cursor: default; }
+
+/* 기록: 디자인 시안의 390px 화면 비율을 기준으로 맞춘 구성 */
+.app-frame.view-records { max-width: 780px; padding: 56px 24px 124px; }
+.app-shell:has(.records-screen) { background: #f4f4f1; min-height: 100dvh; }
+.records-screen { color: #111113; letter-spacing: -.035em; }
+.records-header { display: flex; justify-content: space-between; align-items: center; min-height: 44px; margin-bottom: 16px; }
+.records-header h1 { font-size: 22px; line-height: 28px; font-weight: 750; }
+.records-period { position: relative; display: flex; align-items: center; }
+.records-period select { appearance: none; border: 1px solid #e6e6e1; border-radius: 999px; background: #fff; min-width: 92px; height: 44px; padding: 0 31px 0 16px; color: #111113; font-size: 12px; font-weight: 650; cursor: pointer; }
+.records-period svg { position: absolute; right: 13px; pointer-events: none; color: #707077; width: 13px; height: 13px; }
+.records-summary { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); overflow: hidden; background: #fff; border-radius: 20px; height: 78px; margin-bottom: 16px; }
+.records-summary > div { display: flex; flex-direction: column; justify-content: center; padding: 12px 16px; border-right: 1px solid #efefea; gap: 5px; }
+.records-summary > div:last-child { border-right: 0; }
+.records-summary span { font-size: 12px; line-height: 15px; white-space: nowrap; color: #6a6a70; font-weight: 550; }
+.records-summary strong { font-size: 22px; line-height: 27px; letter-spacing: -.04em; font-weight: 750; }
+.records-calibration { height: 215px; padding: 16px; border-radius: 20px; background: #fff; }
+.records-chart-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.records-chart-heading h2 { font-size: 14px; line-height: 20px; font-weight: 700; }
+.records-chart-heading > span { color: #6a6a70; font-size: 12px; line-height: 20px; white-space: nowrap; }
+.records-calibration > p { color: #6a6a70; font-size: 12px; line-height: 18px; margin-top: 2px; }
+.records-bars { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); align-items: end; column-gap: 10px; height: 134.5px; margin-top: 9px; }
+.records-bar-column { display: flex; flex-direction: column; align-items: center; min-width: 0; gap: 5px; }
+.records-bar-value { height: 17px; line-height: 17px; color: #6a6a70; font-size: 13px; padding: 0 5px; border-radius: 999px; }
+.records-bar-placeholder { width: 100%; height: 42px; border: 1px dashed #d5d5d0; background: #dcdcd6; border-radius: 8px 8px 4px 4px; }
+.records-bar-date { font-size: 13px; line-height: 18px; color: #6a6a70; white-space: nowrap; }
+.records-bar-column.current .records-bar-value { background: #d9f45c; color: #111113; font-weight: 700; }
+.records-bar-column.current .records-bar-placeholder { border-color: #111113; background: #111113; }
+.records-bar-column.current .records-bar-date { color: #111113; font-weight: 600; }
+.records-observation { margin-top: 12px; padding: 16px; border-radius: 20px; background: #111113; color: #f5f5f3; min-height: 100px; }
+.records-observation > div { display: flex; align-items: center; gap: 10px; color: #b3b3ba; font-size: 11px; line-height: 14px; margin-bottom: 10px; }
+.records-observation .loop-symbol { width: 21px; height: 15px; color: #f5f5f3; }
+.records-observation .loop-symbol::before { width: 15px; height: 15px; border-width: 1.5px; }
+.records-observation .loop-symbol::after { width: 14px; height: 14px; top: .5px; }
+.records-observation p { font-size: 14px; line-height: 22px; font-weight: 500; word-break: keep-all; }
+.records-subjects { margin-top: 24px; }
+.records-subjects > h2 { margin-bottom: 12px; font-size: 14px; line-height: 18px; font-weight: 700; }
+.records-subject-list { background: #fff; border-radius: 20px; padding: 0 16px; overflow: hidden; }
+.records-subject-list > button { display: grid; grid-template-columns: minmax(0,1fr) 40px 64px; align-items: center; gap: 12px; width: 100%; text-align: left; min-height: 57px; padding: 15px 0; border-bottom: 1px solid #efefea; }
+.records-subject-list > button:last-child { border-bottom: 0; }
+.records-subject-list > button > strong { font-size: 14px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.records-subject-score { text-align: right; font-size: 14px; font-weight: 650; }
+.records-subject-status { border-radius: 999px; background: #f0f0ec; padding: 4px 7px; font-size: 12px; line-height: 16px; text-align: center; font-weight: 600; white-space: nowrap; }
+.records-measurement-note { color: #93938f; font-size: 10px; line-height: 16px; margin-top: 12px; }
+.records-empty { min-height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 12px; color: #6a6a70; }
+.records-empty button { font-size: 12px; color: #151515; text-decoration: underline; text-underline-offset: 3px; }
+.bottom-nav.records-nav { width: min(684px, calc(100% - 48px)); height: 60px; padding: 6px; gap: 0; background: #111113; box-shadow: none; }
+.bottom-nav.records-nav > a { height: 48px; flex: 1; padding: 0; gap: 8px; }
+.bottom-nav.records-nav > a:not(.active) > span { display: none; }
+.bottom-nav.records-nav > a.active { flex: 0 0 80.5px; min-width: 80.5px; background: #f4f4f1; font-size: 13px; }
+.bottom-nav.records-nav svg { width: 20px; height: 20px; }
+@media (min-width: 700px) {
+  .app-frame.view-records { padding-inline: 48px; }
+  .records-header h1 { font-size: 28px; }
+  .records-summary { height: 96px; }
+  .records-summary > div { padding-inline: 24px; }
+  .records-summary span { font-size: 14px; }
+  .records-summary strong { font-size: 30px; line-height: 36px; }
+  .records-calibration { height: 265px; padding: 24px; }
+  .records-bars { height: 173px; gap: 16px; }
+  .records-observation { padding: 24px; }
+  .records-subject-list { padding-inline: 24px; }
+}
+@media (max-width: 360px) {
+  .records-summary > div { padding-inline: 12px; }
+  .records-summary span { font-size: 11px; }
+  .records-subject-list > button { grid-template-columns: minmax(0,1fr) 25px 54px; gap: 8px; }
+}
+
+.records-nav a:nth-child(2) svg { transform: scaleX(-1); }
