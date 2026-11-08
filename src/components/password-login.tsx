@@ -2,7 +2,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LockKeyhole, Loader2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { verifyEmailCode, validEmailCode } from "@/lib/email-otp";
+import {
+  EmailCodeError,
+  verifyEmailCode,
+  validEmailCode,
+} from "@/lib/email-otp";
+import { AuthRateLimitError } from "@/lib/auth-rate-limit";
 import {
   loginWithPassword,
   registerWithPassword,
@@ -12,11 +17,8 @@ import {
 import { Button } from "./ui/button";
 import LoginFooter from "./auth/login-footer";
 import PasswordField from "./auth/password-field";
-import {
-  LOGIN_COPY,
-  RESET_COOLDOWN_SECONDS,
-  type LoginStep,
-} from "./auth/login-copy";
+import { LOGIN_COPY, type LoginStep } from "./auth/login-copy";
+import { useAuthCooldown } from "./auth/use-auth-cooldown";
 
 type PasswordLoginProps = {
   onClose: () => void;
@@ -39,24 +41,25 @@ export default function PasswordLogin({
   const [isBusy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [noticeMessage, setNoticeMessage] = useState("");
-  const [resendAvailableAt, setResendAvailableAt] = useState(0);
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const { startCooldown, remainingSeconds } = useAuthCooldown();
   const requestInProgress = useRef(false);
   const dialogRef = useRef<HTMLElement>(null);
 
   const copy = LOGIN_COPY[step];
   const isNewPassword = step === "signup" || step === "update";
   const showPassword = step === "login" || isNewPassword;
-  const isResetCoolingDown = step === "reset" && cooldownSeconds > 0;
+  const cooldownSeconds = remainingSeconds(
+    step === "signup" || step === "reset",
+  );
+  const isCoolingDown = cooldownSeconds > 0;
   const isConfirmationIncomplete =
     step === "confirm" && !validEmailCode(verificationCode);
-  const submitDisabled =
-    isBusy || isResetCoolingDown || isConfirmationIncomplete;
+  const submitDisabled = isBusy || isCoolingDown || isConfirmationIncomplete;
   const description = supabase
     ? copy.description.replace("{email}", email)
     : "로그인 설정이 필요합니다. 지금은 데모로 학습할 수 있어요.";
-  const submitLabel = isResetCoolingDown
-    ? `${cooldownSeconds}초 후 재전송`
+  const submitLabel = isCoolingDown
+    ? `${cooldownSeconds}초 후 다시 시도`
     : copy.submitLabel;
 
   // 2. 포커스 이동과 메일 재전송 대기 시간
@@ -79,17 +82,6 @@ export default function PasswordLogin({
       ?.querySelector<HTMLInputElement>("input:not([disabled])")
       ?.focus();
   }, [step]);
-
-  useEffect(() => {
-    if (!resendAvailableAt) return;
-    function updateCooldown() {
-      const remaining = Math.ceil((resendAvailableAt - Date.now()) / 1000);
-      setCooldownSeconds(Math.max(0, remaining));
-    }
-    updateCooldown();
-    const timer = setInterval(updateCooldown, 1000);
-    return () => clearInterval(timer);
-  }, [resendAvailableAt]);
 
   function changeStep(nextStep: LoginStep) {
     setStep(nextStep);
@@ -140,8 +132,7 @@ export default function PasswordLogin({
   async function handleResetRequest() {
     if (!supabase || cooldownSeconds > 0) return;
     await requestPasswordReset(supabase.auth, email, window.location.origin);
-    setCooldownSeconds(RESET_COOLDOWN_SECONDS);
-    setResendAvailableAt(Date.now() + RESET_COOLDOWN_SECONDS * 1000);
+    startCooldown("email");
     setNoticeMessage(
       "해당 이메일의 계정이 있다면 비밀번호 설정 메일이 도착해요. 메일의 링크를 열어 새 비밀번호를 설정해 주세요.",
     );
@@ -180,6 +171,11 @@ export default function PasswordLogin({
           break;
       }
     } catch (error) {
+      if (error instanceof AuthRateLimitError) {
+        startCooldown(error.scope);
+      } else if (error instanceof EmailCodeError && error.rateLimited) {
+        startCooldown("request");
+      }
       setErrorMessage(
         error instanceof Error ? error.message : "인증을 완료하지 못했습니다.",
       );

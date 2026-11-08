@@ -42,5 +42,3 @@ export const LOGIN_LINKS = {
   login: "로그인으로 돌아가기",
   close: "학습 공간으로 돌아가기",
 };
-
-export const RESET_COOLDOWN_SECONDS = 60;

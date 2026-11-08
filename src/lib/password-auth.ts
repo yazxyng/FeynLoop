@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { authRateLimit } from "./auth-rate-limit";
 
 type Auth = SupabaseClient["auth"];
 export type PasswordAuth = Pick<
@@ -18,8 +19,8 @@ export function validateNewPassword(password: string, confirmation: string) {
 }
 function failure(error: { code?: string; status?: number } | null) {
   if (!error) return;
-  if (error.status === 429)
-    throw new Error("요청이 많습니다. 잠시 후 다시 시도해 주세요.");
+  const rateLimit = authRateLimit(error);
+  if (rateLimit) throw rateLimit;
   if (error.code === "invalid_credentials")
     throw new Error(
       "이메일 또는 비밀번호를 확인해 주세요. 예전에 인증번호로 가입했다면 ‘비밀번호 재설정하기’를 이용해 주세요.",

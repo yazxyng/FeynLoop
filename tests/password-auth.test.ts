@@ -149,3 +149,28 @@ test("약한 비밀번호·불일치 입력은 전송하지 않고 인증 오류
   );
   assert.equal(calls, 1);
 });
+
+test("메일 발송 한도와 로그인 요청 한도를 구분하고 자동 재시도하지 않는다", async () => {
+  const { AuthRateLimitError } = await import("../src/lib/auth-rate-limit");
+  for (const [code, scope] of [
+    ["over_email_send_rate_limit", "email"],
+    ["over_request_rate_limit", "request"],
+  ] as const) {
+    let calls = 0;
+    const c = client(async () => {
+      calls++;
+      return Response.json(
+        { error_code: code, msg: "PRIVATE_DETAIL" },
+        { status: 429 },
+      );
+    });
+    await assert.rejects(
+      requestPasswordReset(c.auth, user.email, "http://localhost:3000"),
+      (error: Error) =>
+        error instanceof AuthRateLimitError &&
+        error.scope === scope &&
+        !error.message.includes("PRIVATE_DETAIL"),
+    );
+    assert.equal(calls, 1);
+  }
+});
