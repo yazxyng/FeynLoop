@@ -1,12 +1,13 @@
 "use client";
 import {
-  BookOpen,
-  MessageCircle,
-  Lightbulb,
+  ArrowLeft,
   ArrowRight,
+  BookOpen,
+  ChevronDown,
+  Lightbulb,
   Loader2,
   LockKeyhole,
-  FileSearch,
+  Save,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import type { Concept, Project, Study } from "@/lib/types";
@@ -15,251 +16,262 @@ type Props = {
   concept: Concept;
   study: Study;
   busy: boolean;
-  tab: string;
-  setTab: (tab: string) => void;
   onDraft: (text: string) => void;
   onSubmit: () => void;
   onAction: (action: string, extra?: Record<string, unknown>) => void;
   onSave: () => void;
+  onBack: () => void;
 };
 export default function StudyRoom({
   project,
   concept,
   study,
   busy,
-  tab,
-  setTab,
   onDraft,
   onSubmit,
   onAction,
   onSave,
+  onBack,
 }: Props) {
-  const review = study.phase === "review";
-  const step =
-    study.phase === "explain"
-      ? 0
-      : study.phase === "questions"
+  const review = study.phase === "review",
+    final = study.phase === "rewrite",
+    step =
+      study.phase === "explain"
         ? 1
-        : review
+        : study.phase === "questions"
           ? 2
-          : 3;
+          : review
+            ? 3
+            : 4;
+  const question = final
+    ? "질문에서 찾은 빈틈을 떠올리며, 처음부터 다시 설명해 줄래?"
+    : study.phase === "questions"
+      ? study.feedback?.question
+      : `${concept.title}? 처음 들어봐. 처음 배우는 친구한테 말하듯이 설명해 줄래?`;
   return (
     <>
-      <div className="steps">
-        {["기억으로 설명", "질문·답변", "필요한 근거 확인", "다시 설명"].map(
-          (label, i) => (
-            <span className={step === i ? "current" : ""} key={label}>
-              <b>{i + 1}</b>
-              {label}
-            </span>
-          ),
+      <div className="session-toolbar">
+        <button
+          className="icon-button"
+          disabled={busy}
+          onClick={onBack}
+          aria-label="개념 목록으로 돌아가기"
+        >
+          <ArrowLeft size={22} />
+        </button>
+        <span>
+          {step} / 4{" "}
+          <small>
+            {["첫 설명", "질문과 답변", "근거 확인", "최종 재설명"][step - 1]}
+          </small>
+        </span>
+        {review ? (
+          <span className="session-toolbar-note">질문 완료</span>
+        ) : (
+          <button className="text-button" disabled={busy} onClick={onSave}>
+            <Save size={15} />
+            저장
+          </button>
         )}
       </div>
-      <div className="info-box">
-        <LockKeyhole size={18} />
-        <p>
-          {review
-            ? "질문을 마쳤어요. 필요한 근거만 확인하거나, 바로 재설명을 시작해도 좋아요."
-            : "원문을 보지 않고 기억나는 내용을 설명해 보세요. 설명·재설명 중에는 원문을 열 수 없습니다."}
-          <br />
-          <small>
-            {project.mode === "demo"
-              ? "데모 질문이며 실제 이해도를 판정하지 않습니다."
-              : "AI는 서버의 문서 근거를 바탕으로 질문합니다."}
-          </small>
-        </p>
-      </div>
-      {review ? (
-        <section className="review-panel">
-          <FileSearch size={24} />
-          <h2>어떤 부분을 다시 확인하고 싶나요?</h2>
-          <p>
-            관련 페이지에서 최대 650자의 근거만 제공합니다. 열람 여부는 결과에
-            함께 기록됩니다.
-          </p>
-          <div className="review-actions">
-            {concept.pages.slice(0, 3).map((page) => (
-              <Button
-                key={page}
-                variant="outline"
-                disabled={
-                  busy || study.evidenceViews.some((v) => v.page === page)
-                }
-                onClick={() => onAction("evidence", { page })}
-              >
-                p.{page} 관련 근거 확인
-              </Button>
+      <div className="session-layout">
+        <div className="session-context">
+          <section className="session-concept">
+            <p>핵심 카드 · {project.name.replace(/\.pdf$/i, "")}</p>
+            <h1>{concept.title}</h1>
+            <span>
+              {review
+                ? "필요한 부분만 확인하고, 다시 덮어요."
+                : "원문은 덮고, 내 말로 설명해 주세요."}
+            </span>
+          </section>
+          <div className="session-step-track" aria-label={`학습 ${step}단계`}>
+            {[1, 2, 3, 4].map((n) => (
+              <i className={n <= step ? "filled" : ""} key={n} />
             ))}
           </div>
-          {study.evidence?.map((e) => (
-            <blockquote className="evidence-excerpt" key={e.page}>
-              <small>
-                근거 p.{e.page} ·{" "}
-                {new Date(e.viewedAt).toLocaleTimeString("ko-KR")}
-              </small>
-              <p>{e.text}</p>
-            </blockquote>
-          ))}
-          <Button disabled={busy} onClick={() => onAction("rewrite")}>
-            근거를 닫고 처음부터 재설명 <ArrowRight size={16} />
-          </Button>
-        </section>
-      ) : (
-        <>
-          <div className="mobile-tabs">
-            {[
-              ["editor", "나의 설명"],
-              ["chat", "AI 학생"],
-            ].map(([key, label]) => (
-              <button
-                key={key}
-                className={tab === key ? "selected" : ""}
-                onClick={() => setTab(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="study-grid recall-grid">
-            <section
-              className={`study-panel editor-panel ${tab === "editor" ? "mobile-visible" : ""}`}
-            >
-              <div className="panel-heading">
-                <BookOpen size={17} />
-                <strong>
-                  {study.phase === "rewrite"
-                    ? "최종 재설명"
-                    : study.phase === "questions"
-                      ? "질문에 답하기"
-                      : "나의 첫 설명"}
-                </strong>
-                <span>저장 버튼으로 임시 저장</span>
-              </div>
-              <div className="editor-intro">
-                <span className="tag">{concept.title}</span>
-                <h3>
-                  {study.phase === "rewrite"
-                    ? "근거를 덮고, 처음부터 다시."
-                    : study.phase === "questions"
-                      ? "생각을 한 단계 더 풀어볼까요?"
-                      : "처음 배우는 친구에게 설명하듯."}
-                </h3>
-                <p>
+          {!review && (
+            <section className="ai-question">
+              <div className="ai-label">
+                <span className="ai-avatar">
+                  <span className="loop-symbol" />
+                </span>
+                <strong>짝꿍 AI</strong>
+                <span>
+                  {project.mode === "demo" ? "데모" : "Gemini"}
                   {study.phase === "questions"
-                    ? study.feedback?.question
-                    : "기억나는 정의, 작동 원리, 자신만의 예시를 적어 보세요. 확신이 없는 부분도 편하게 표현해 주세요."}
-                </p>
+                    ? ` · 질문 ${study.turns.length + 1} / 3`
+                    : ""}
+                </span>
+              </div>
+              <p>{question}</p>
+              {study.phase === "questions" && (
+                <>
+                  <div className="hint-stack">
+                    {study.hints.map((hint, i) => (
+                      <div key={i}>
+                        <small>힌트 {i + 1}</small>
+                        <p>{hint}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    className="hint-button"
+                    disabled={busy || study.hints.length >= 2}
+                    onClick={() => onAction("hint")}
+                  >
+                    <Lightbulb size={15} />
+                    {study.hints.length >= 2
+                      ? "두 단계 힌트를 확인했어요"
+                      : `힌트 ${study.hints.length + 1}단계 받기`}
+                  </button>
+                </>
+              )}
+            </section>
+          )}
+          {study.phase === "questions" && study.turns.length > 0 && (
+            <details className="conversation-history">
+              <summary>
+                지금까지 나눈 대화 <span>{study.turns.length}개</span>
+                <ChevronDown size={15} />
+              </summary>
+              <div>
+                {study.first && (
+                  <article className="my-turn">
+                    <small>나의 첫 설명</small>
+                    <p>{study.first}</p>
+                  </article>
+                )}
+                {study.turns.map((turn, i) => (
+                  <article key={i}>
+                    <small>질문 {i + 1}</small>
+                    <p>{turn.question}</p>
+                    <div className="my-turn">
+                      <p>{turn.answer}</p>
+                      {turn.hints.length > 0 && (
+                        <small>힌트 {turn.hints.length}단계 사용</small>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+        {review ? (
+          <section className="review-panel">
+            <span className="review-icon">
+              <BookOpen size={24} />
+            </span>
+            <h2>어떤 부분을 더 확인할까요?</h2>
+            <p>
+              관련 문단만 짧게 열어볼 수 있어요.
+              <br />
+              확인한 페이지는 학습 결과에 함께 남습니다.
+            </p>
+            <div className="review-actions">
+              {concept.pages.slice(0, 3).map((page) => (
+                <Button
+                  variant="outline"
+                  key={page}
+                  disabled={
+                    busy || study.evidenceViews.some((v) => v.page === page)
+                  }
+                  onClick={() => onAction("evidence", { page })}
+                >
+                  {study.evidenceViews.some((v) => v.page === page)
+                    ? "확인한 근거"
+                    : "관련 근거"}{" "}
+                  p.{page}
+                </Button>
+              ))}
+            </div>
+            {study.evidence?.map((e) => (
+              <blockquote className="evidence-excerpt" key={e.page}>
+                <small>문서 근거 p.{e.page}</small>
+                <p>{e.text}</p>
+              </blockquote>
+            ))}
+            <div className="source-notice">
+              <LockKeyhole size={16} />
+              <p>
+                최대 3페이지, 페이지별 650자까지 확인해요.
+                <br />
+                재설명을 시작하면 근거는 다시 숨겨집니다.
+              </p>
+            </div>
+            <Button
+              className="wide-action"
+              disabled={busy}
+              onClick={() => onAction("rewrite")}
+            >
+              근거를 닫고 재설명하기 <ArrowRight size={17} />
+            </Button>
+          </section>
+        ) : (
+          <section className="explanation-area">
+            <div className="editor-card">
+              <div className="editor-label">
+                <label htmlFor="explanation-input">
+                  {final
+                    ? "처음부터 다시, 내 설명"
+                    : study.phase === "questions"
+                      ? "나의 답변"
+                      : "내 설명"}
+                </label>
+                <span className="input-medium">글로</span>
               </div>
               <textarea
+                id="explanation-input"
                 className="explanation"
                 aria-label="설명 작성"
                 disabled={busy}
                 maxLength={15000}
-                placeholder="제가 이해한 이 개념은…"
+                placeholder={
+                  final
+                    ? "이 개념을 처음 배우는 사람에게, 처음부터 다시 설명해 볼게요…"
+                    : "제가 이해한 이 개념은…"
+                }
                 value={study.draft}
-                onChange={(e) => onDraft(e.target.value)}
+                onChange={(event) => onDraft(event.target.value)}
               />
-              <div className="editor-footer">
-                <span>{study.draft.length.toLocaleString()} / 15,000자</span>
-                <Button
-                  disabled={busy || !study.draft.trim()}
-                  onClick={onSubmit}
-                >
-                  {busy ? (
-                    <Loader2 className="spin" size={15} />
-                  ) : (
-                    <ArrowRight size={15} />
-                  )}{" "}
-                  {study.phase === "rewrite"
-                    ? "학습 결과 확인"
-                    : study.phase === "questions"
-                      ? "답변 보내기"
-                      : "첫 설명 제출"}
-                </Button>
+              <div className="editor-count">
+                <LockKeyhole size={12} />
+                <span>원문 없이 기억으로</span>
+                <span>{study.draft.length.toLocaleString()} / 15,000</span>
               </div>
+            </div>
+            <div className="session-submit">
               <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={onSave}
+                className="wide-action"
+                disabled={busy || !study.draft.trim()}
+                onClick={onSubmit}
               >
-                저장하고 잠시 쉬기
-              </Button>
-            </section>
-            <section
-              className={`study-panel chat-panel ${tab === "chat" ? "mobile-visible" : ""}`}
-            >
-              <div className="panel-heading">
-                <MessageCircle size={17} />
-                <strong>호기심 많은 AI 학생</strong>
-                <span>{study.turns.length} / 3 질문</span>
-              </div>
-              <div className="chat-body">
-                <div className="chat-message">
-                  <strong>✳ 루프</strong>
-                  <p>
-                    {study.phase === "rewrite"
-                      ? "세 번의 질문을 마쳤어요. 지금 떠오르는 내용으로 처음부터 설명해 주세요."
-                      : "안녕하세요! 설명해 주시면 궁금한 점을 하나씩 물어볼게요. 정답을 바로 알려드리지는 않아요."}
-                  </p>
-                </div>
-                {study.phase !== "rewrite" && (
+                {busy ? (
                   <>
-                    {study.first && (
-                      <div className="chat-answer">
-                        <small>나의 첫 설명</small>
-                        <p>{study.first}</p>
-                      </div>
-                    )}
-                    {study.turns.map((t, i) => (
-                      <div key={i}>
-                        <div className="chat-message">
-                          <strong>질문 {i + 1}</strong>
-                          <p>{t.question}</p>
-                        </div>
-                        <div className="chat-answer">
-                          <p>{t.answer}</p>
-                          {t.hints.length > 0 && (
-                            <small>힌트 {t.hints.length}단계 사용</small>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {study.phase === "questions" && (
-                      <div className="chat-message">
-                        <strong>✳ 질문 {study.turns.length + 1}</strong>
-                        <p>{study.feedback?.question}</p>
-                        {study.hints.map((hint, i) => (
-                          <p className="hint" key={i}>
-                            힌트 {i + 1}: {hint}
-                          </p>
-                        ))}
-                        <button
-                          className="hint-button"
-                          disabled={busy || study.hints.length >= 2}
-                          onClick={() => onAction("hint")}
-                        >
-                          <Lightbulb size={14} />
-                          {study.hints.length >= 2
-                            ? "힌트 2단계까지 확인했어요"
-                            : `힌트 ${study.hints.length + 1}단계 요청`}
-                        </button>
-                      </div>
-                    )}
+                    <Loader2 size={17} className="spin" />
+                    생각을 읽고 있어요
                   </>
+                ) : final ? (
+                  "재설명 마치고 결과 보기"
+                ) : study.phase === "questions" ? (
+                  "답변 보내기"
+                ) : (
+                  "설명 제출"
                 )}
-              </div>
-              <small className="chat-disclaimer">
-                {study.phase === "rewrite"
-                  ? "재설명 중에는 이전 대화와 근거를 숨깁니다."
-                  : project.mode === "demo"
-                    ? "데모 질문입니다. 실제 이해도를 평가하지 않습니다."
-                    : "평가와 문서 근거는 학습 결과에서 확인할 수 있어요."}
-              </small>
-            </section>
-          </div>
-        </>
-      )}
+                {!busy && <ArrowRight size={18} />}
+              </Button>
+              <p className="session-footnote">
+                {project.mode === "demo"
+                  ? "데모 질문입니다. 실제 이해도를 평가하지 않아요."
+                  : final
+                    ? "이전 대화와 근거는 덮고, 나의 말로 다시 설명해요."
+                    : "정답보다 중요한 건, 내 생각을 꺼내보는 거예요."}
+              </p>
+            </div>
+          </section>
+        )}
+      </div>
     </>
   );
 }
