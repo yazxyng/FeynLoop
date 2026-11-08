@@ -330,6 +330,11 @@ test("Gemini 개념 추출·평가: 기존 근거 검증과 첫 설명·직전 �
       },
     ],
     hints: ["첫 단서", "다음 단서"],
+    questionGrounding: {
+      answerQuote: "설명",
+      page: 1,
+      quote: sample.pages[0].text.slice(0, 20),
+    },
   };
   const fetch = t.mock.method(
     globalThis,
@@ -352,6 +357,11 @@ test("Gemini 개념 추출·평가: 기존 근거 검증과 첫 설명·직전 �
   assert.equal(assessed.hints.length, 2);
   assert.equal(payload.firstExplanation, "첫 설명");
   assert.equal(payload.explanation, "최종 설명");
+  assert.equal(payload.latestAnswer, "최종 설명");
+  assert.equal(payload.lastQuestion, "질문");
+  assert.deepEqual(payload.previousQuestions, ["질문"]);
+  assert.equal(payload.remainingQuestions, 2);
+  assert.equal(payload.questionMode, "probe");
   assert.deepEqual(payload.turns, study.turns);
   assert.deepEqual(payload.evidenceViews, study.evidenceViews);
   fetch.mock.restore();
@@ -374,8 +384,8 @@ test("Gemini 개념 추출·평가: 기존 근거 검증과 첫 설명·직전 �
   assert.ok(
     uncertain.feedback.unverified.some((item) => item.includes("미확인")),
   );
-  assert.ok(uncertain.feedback.question.includes("원인과 결과"));
-  assert.ok(!uncertain.hints.includes("첫 단서"));
+  assert.equal(uncertain.feedback.question, feedback.question);
+  assert.deepEqual(uncertain.hints, feedback.hints);
   const finalUncertain = await evaluate(
     sample.pages,
     concepts[0],
@@ -386,6 +396,98 @@ test("Gemini 개념 추출·평가: 기존 근거 검증과 첫 설명·직전 �
   );
   assert.equal(finalUncertain.feedback.question, "");
   assert.ok(finalUncertain.feedback.change.includes("보류"));
+});
+
+test("반복 질문·없는 문서 근거·답변에 없는 표현은 그대로 노출하지 않는다", async (t) => {
+  environment(t);
+  const concept = sample.concepts[0];
+  const study = {
+    ...newStudy(concept.id),
+    turns: [
+      {
+        question: "왜 그렇게 생각해?",
+        answer: "기억에서 꺼내야 해",
+        hints: [],
+      },
+    ],
+  };
+  const answer = "책 없이 기억에서 꺼내야 해";
+  const base = {
+    ...demoFeedback(concept.title, answer),
+    question: "책 없이 떠올리는 게 왜 필요할까?",
+    hints: ["사용하면 안 될 힌트 1", "사용하면 안 될 힌트 2"],
+    questionGrounding: {
+      answerQuote: "기억에서 꺼내야 해",
+      page: 1,
+      quote: sample.pages[0].text.slice(0, 20),
+    },
+  };
+  let output = base;
+  const fetch = t.mock.method(globalThis, "fetch", async () => success(output));
+  for (const variant of [
+    { ...base, question: study.turns[0].question },
+    { ...base, questionGrounding: { ...base.questionGrounding, page: 999 } },
+    {
+      ...base,
+      questionGrounding: {
+        ...base.questionGrounding,
+        answerQuote: "답변에 없는 내용",
+      },
+    },
+    { ...base, question: "왜 그럴까? 예는 뭘까?" },
+    {
+      ...base,
+      question: "교재의 1쪽 내용을 보면 정답이 나와 있는데, 어떻게 생각해?",
+    },
+    {
+      ...base,
+      question: sample.pages[0].text.slice(0, 60) + " 어떻게 생각해?",
+    },
+  ]) {
+    output = variant;
+    const result = await evaluate(
+      sample.pages,
+      concept,
+      study,
+      answer,
+      true,
+      false,
+    );
+    assert.ok(result.feedback.question.includes(answer));
+    assert.notEqual(result.feedback.question, variant.question);
+    assert.ok(!result.hints.includes(base.hints[0]));
+  }
+  assert.equal(
+    fetch.mock.callCount(),
+    6,
+    "질문 품질 오류에도 추가 AI 호출 없이 처리",
+  );
+  output = {
+    ...base,
+    hints: [
+      sample.pages[0].text.slice(0, 60),
+      "교재의 1쪽 내용을 보면 정답이 있어.",
+    ],
+  };
+  const withSafeHints = await evaluate(
+    sample.pages,
+    concept,
+    study,
+    answer,
+    true,
+    false,
+  );
+  assert.equal(withSafeHints.feedback.question, base.question);
+  assert.ok(!withSafeHints.hints.includes(output.hints[0]));
+  const finished = await evaluate(
+    sample.pages,
+    concept,
+    { ...study, turns: Array(3).fill(study.turns[0]) },
+    answer,
+    true,
+    false,
+  );
+  assert.equal(finished.feedback.question, "");
 });
 
 test("짧은 PDF의 소수 개념은 허용하지만 빈 결과·10개 초과·없는 페이지는 거부한다", async (t) => {

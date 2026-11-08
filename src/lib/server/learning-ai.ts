@@ -9,11 +9,19 @@ import type { SourcePage, PrivateStudy } from "./models";
 import { demoFeedback } from "./demo";
 import { ApiError } from "./errors";
 import { generateGemini } from "./gemini";
+import { evaluationInstruction } from "./learning-prompts";
 const conceptsResponseSchema = z.object({
   concepts: z.array(conceptSchema).min(1).max(10),
 });
 const assessmentResponseSchema = feedbackSchema.extend({
   hints: z.array(z.string().min(1).max(1000)).length(2),
+  questionGrounding: z
+    .object({
+      answerQuote: z.string().max(120),
+      page: z.number().int().positive(),
+      quote: z.string().min(1).max(650),
+    })
+    .nullable(),
 });
 export async function extractConcepts(
   pages: SourcePage[],
@@ -167,12 +175,19 @@ export async function evaluate(
     };
   }
   const parsed = await generateGemini(
-    `설명에서 확인되지 않은 것은 모름이나 오답이 아니라 unverified(미확인)다. errors는 명시적으로 틀린 주장만, missing은 학습 목표 중 설명에 빠진 항목(이해 여부 미확인)으로 구분하라. understood와 errors와 missing의 각 문장마다 evidence에 동일한 claim, kind, page, 원문 그대로의 연속된 짧은 quote를 제공하라. 인용문에 요약·말줄임표를 넣지 마라. claim은 해당 평가 문장을 그대로 복사하라. 정확한 인용문을 찾을 수 없는 판단은 understood/errors/missing에 넣지 말고 unverified에 판단 보류로 기록하라. 근거 없는 확신·점수는 금지한다. ${final ? "첫 설명과 마지막 설명을 동일 기준으로 비교하고 change에 구체적인 변화와 남은 불확실성을 기술하라. 근거·힌트 열람 이력을 함께 고려하고 독립적인 숙달로 단정하지 마라. question은 빈 문자열이다." : study.turns.length >= 3 ? "세 번의 질문을 마쳤으므로 더 질문하지 말고 question을 빈 문자열로 반환하라." : "직전 답변을 반영한 새로운 학생 질문 하나만 question으로 작성하라. 이전 질문을 반복하지 마라. 정답, 정의, 인용문, 원문 문장을 질문과 힌트에 넣지 말고 사용자가 생각할 수 있는 단서만 제시하라."} 형식: {understood:[문자열],errors:[문자열],missing:[문자열],improve:[문자열],unverified:[문자열],question:문자열,hint:"",change:문자열,evidence:[{kind:"understood"|"errors"|"missing",claim:문자열,page:정수,quote:문자열}],hints:[정답을 주지 않는 가벼운 단서,사고 과정을 안내하는 다음 단계 단서]}`,
+    evaluationInstruction(final, study.turns.length),
     {
       pages,
       concept,
       firstExplanation: study.first || explanation,
       explanation,
+      latestAnswer: explanation,
+      questionMode: /모르|어려|헷갈|막혔/.test(explanation)
+        ? "small_step"
+        : "probe",
+      lastQuestion: study.turns.at(-1)?.question || null,
+      previousQuestions: study.turns.map((turn) => turn.question),
+      remainingQuestions: Math.max(0, 3 - study.turns.length),
       turns: study.turns,
       firstAssessment: final ? study.firstAssessment : undefined,
       evidenceViews: study.evidenceViews,
@@ -180,31 +195,93 @@ export async function evaluate(
     },
     assessmentResponseSchema,
   );
-  const { feedback, withheld } = groundAssessment(
-    feedbackSchema.parse(parsed),
-    pages,
-  );
+  const { feedback } = groundAssessment(feedbackSchema.parse(parsed), pages);
   let hints = z
     .array(z.string().min(1).max(1000))
     .length(2)
     .parse(parsed.hints);
-  if (withheld) {
-    // 근거 없는 평가에서 파생된 질문·힌트를 사용하지 않고 설명을 더 확인합니다.
+  const finished = final || study.turns.length >= 3;
+  const grounding = parsed.questionGrounding;
+  const question = feedback.question.trim();
+  const questionSupported =
+    grounding &&
+    normalizeText(grounding.answerQuote) &&
+    normalizeText(explanation).includes(normalizeText(grounding.answerQuote)) &&
+    hasSourceQuote({ ...grounding, kind: "understood", claim: "" }, pages);
+  const repeated = study.turns.some(
+    (turn) => normalizeText(turn.question) === normalizeText(question),
+  );
+  // 원문을 닫은 학습에서 문서를 해설하거나 긴 원문을 그대로 내보내지 않습니다.
+  const citesDocument = (text: string) =>
+    /(?:교재|문서|원문|PDF).{0,12}(?:보면|따르면|내용|되어|나와|쪽|페이지)|\d+\s*(?:쪽|페이지)(?:에|을|를|의)/iu.test(
+      text,
+    );
+  const copiesSource = (text: string) => {
+    const normalized = normalizeText(text);
+    return pages.some((page) => {
+      const source = normalizeText(page.text);
+      for (let offset = 0; offset <= normalized.length - 24; offset++) {
+        const fragment = normalized.slice(offset, offset + 24);
+        if (
+          !normalizeText(concept.title).includes(fragment) &&
+          source.includes(fragment)
+        )
+          return true;
+      }
+      return false;
+    });
+  };
+  if (finished) {
+    feedback.question = "";
+  } else if (
+    !questionSupported ||
+    !question ||
+    question.length > 240 ||
+    citesDocument(question) ||
+    copiesSource(question) ||
+    repeated ||
+    (question.match(/[?？]/g)?.length || 0) > 1
+  ) {
+    // 평가에 미확인 항목이 있어도 질문 자체의 근거가 확인되면 맞춤 질문을 유지합니다.
+    const anchor = normalizeText(explanation).slice(0, 60);
+    const candidates = /모르|어려|헷갈|막혔/.test(explanation)
+      ? [
+          `괜찮아. ${concept.title}이 쓰일 법한 상황 하나만 떠올려 볼까?`,
+          `${concept.title}에서 이해한 부분과 아직 헷갈리는 부분을 나눠 말해 줄래?`,
+        ]
+      : [
+          `“${anchor}”라고 한 부분을 조금 더 풀어 말해 줄래?`,
+          `“${anchor}”라는 생각이 성립하려면 어떤 조건이 필요할까?`,
+          `“${anchor}”에서 조건 하나가 달라지면 결과도 달라질까?`,
+        ];
     feedback.question =
-      final || study.turns.length >= 3
-        ? ""
-        : study.turns.length === 0
-          ? "방금 설명한 개념을 보여 주는 구체적인 사례를 하나 들어 줄래요?"
-          : study.turns.length === 1
-            ? "방금 든 사례에서 원인과 결과가 어떻게 이어지는지 설명해 줄래요?"
-            : "방금 답변이 다른 상황에서도 성립할까요? 조건을 바꾸어 생각해 줄래요?";
+      candidates.find(
+        (candidate) =>
+          !study.turns.some(
+            (turn) => normalizeText(turn.question) === normalizeText(candidate),
+          ),
+      ) || `이번 설명에서 아직 확신이 안 드는 부분 하나를 골라 줄래?`;
     hints = [
-      "내 설명에서 가장 중요한 단어 하나를 골라 보세요.",
-      "그 단어가 드러나는 사례를 고르고, 왜 그런 결과가 생기는지 생각해 보세요.",
+      "방금 답변에서 내가 확실히 아는 부분 하나만 골라 봐.",
+      "그 부분을 처음 듣는 사람에게 한 문장으로 풀어 말해 봐.",
     ];
-    feedback.hint = "";
+  } else {
+    feedback.question = question;
   }
-  if (!final && study.turns.length < 3 && !feedback.question.trim())
-    throw new ApiError(502, "AI가 질문을 생성하지 못했습니다.");
+  // 힌트도 사실 설명 대신 생각할 방향만 제공하게 제한합니다.
+  if (
+    hints.some(
+      (hint) =>
+        citesDocument(hint) ||
+        copiesSource(hint) ||
+        /(?:뜻이야|말해\.|훈련이야|강화돼|강화한다|활동이다)/u.test(hint),
+    )
+  ) {
+    hints = [
+      "질문에서 달라지는 조건 하나만 먼저 골라 봐.",
+      "그 조건이 바뀌기 전과 후를 나눠, 네 설명으로 결과를 예상해 봐.",
+    ];
+  }
+  feedback.hint = "";
   return { feedback, hints };
 }
