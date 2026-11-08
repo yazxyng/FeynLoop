@@ -18,7 +18,7 @@ import type { Identity } from "./http";
 import { evaluate } from "./learning-ai";
 import { ApiError } from "./errors";
 import { loadProject, updateProject, withProjectLock } from "./store";
-import { learningDay } from "../activity";
+import { learningDay, validLearningDay } from "../activity";
 export const commandSchema = z
   .object({
     requestId: z.string().uuid(),
@@ -118,6 +118,12 @@ export function present(
     createdAt: project.createdAt,
     pageCount: project.pageCount,
     sourceType: project.sourceType || "pdf",
+    activity: Object.fromEntries(
+      Object.entries(project.activity || {}).filter(
+        ([day, count]) =>
+          validLearningDay(day) && Number.isSafeInteger(count) && count > 0,
+      ),
+    ),
     concepts: project.concepts.map((c) => ({ ...c, pages: [...c.pages] })),
     studies,
     version: project.version,

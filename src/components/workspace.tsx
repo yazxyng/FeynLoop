@@ -393,52 +393,50 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
             { view: "upload" as View, label: "등록", icon: Plus },
             { view: "records" as View, label: "기록", icon: ChartNoAxesColumn },
             { view: "profile" as View, label: "마이페이지", icon: UserRound },
-          ]
-            .filter((item) => view !== "records" || item.view !== "profile")
-            .map((item) => {
-              const selected =
-                view === item.view ||
-                (item.view === "library" &&
-                  ["concepts", "detail"].includes(view));
-              return (
-                <Link
-                  href={workspacePath({ view: item.view })}
-                  key={item.view}
-                  className={selected ? "active" : ""}
-                  aria-current={selected ? "page" : undefined}
-                  aria-label={item.label}
-                  aria-disabled={busy || undefined}
-                  onClick={(event) => {
-                    if (busy) event.preventDefault();
-                    else {
-                      setError("");
-                      setNotice("");
-                    }
-                  }}
-                >
-                  {view === "records" && item.view === "dashboard" ? (
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M3 10 12 3 21 10V21H3Z"
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  ) : view === "records" && item.view === "library" ? (
-                    <Copy size={21} />
-                  ) : (
-                    <item.icon size={21} />
-                  )}
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+          ].map((item) => {
+            const selected =
+              view === item.view ||
+              (item.view === "library" &&
+                ["concepts", "detail"].includes(view));
+            return (
+              <Link
+                href={workspacePath({ view: item.view })}
+                key={item.view}
+                className={selected ? "active" : ""}
+                aria-current={selected ? "page" : undefined}
+                aria-label={item.label}
+                aria-disabled={busy || undefined}
+                onClick={(event) => {
+                  if (busy) event.preventDefault();
+                  else {
+                    setError("");
+                    setNotice("");
+                  }
+                }}
+              >
+                {view === "records" && item.view === "dashboard" ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M3 10 12 3 21 10V21H3Z"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                ) : view === "records" && item.view === "library" ? (
+                  <Copy size={21} />
+                ) : (
+                  <item.icon size={21} />
+                )}
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       )}
       {activeOperation && busyPresentation === "dialog" && (

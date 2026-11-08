@@ -49,6 +49,7 @@ export type Study = {
   attempt: number;
 };
 export type Project = {
+  activity?: Record<string, number>;
   sourceType?: "pdf" | "text";
   id: string;
   name: string;

@@ -414,6 +414,62 @@ function useWorkspaceController() {
     });
   }
 
+  // 기록 화면에 돌아오거나 탭을 다시 볼 때 다른 화면에서 저장한 집계도 읽습니다.
+  useEffect(() => {
+    if (!ready || view !== "records") return;
+    let active = true;
+    let loading = false;
+    const current = generation.current;
+    async function refreshRecords() {
+      if (loading || document.visibilityState === "hidden") return;
+      loading = true;
+      try {
+        const data = await api("/api/projects");
+        if (!active || current !== generation.current) return;
+        setProjects((previous) => {
+          if (!active || current !== generation.current) return previous;
+          const merged = new Map(previous.map((entry) => [entry.id, entry]));
+          for (const loaded of data.projects as Project[]) {
+            const cached = merged.get(loaded.id);
+            if (cached && cached.version > loaded.version) continue;
+            for (const session of Object.values(loaded.studies)) {
+              if (["explain", "questions", "rewrite"].includes(session.phase))
+                session.draft = restoreStudyDraft(loaded.id, session);
+            }
+            merged.set(loaded.id, {
+              ...cached,
+              ...loaded,
+              studies:
+                cached?.version === loaded.version
+                  ? cached.studies
+                  : loaded.studies,
+            });
+          }
+          return [...merged.values()].sort((a, b) =>
+            b.createdAt.localeCompare(a.createdAt),
+          );
+        });
+      } catch (error) {
+        if (active && current === generation.current)
+          setError(
+            error instanceof Error
+              ? error.message
+              : "최신 학습 기록을 읽지 못했어요.",
+          );
+      } finally {
+        loading = false;
+      }
+    }
+    void refreshRecords();
+    window.addEventListener("focus", refreshRecords);
+    document.addEventListener("visibilitychange", refreshRecords);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshRecords);
+      document.removeEventListener("visibilitychange", refreshRecords);
+    };
+  }, [view, ready, authVersion]);
+
   // Deep links are read-only: opening a study URL never starts an AI request.
   useEffect(() => {
     if (!ready || !projectId) {

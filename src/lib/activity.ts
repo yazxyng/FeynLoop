@@ -1,6 +1,13 @@
 import type { LearningDays } from "./profile-types";
 
 const DAY_MS = 86400000;
+export function validLearningDay(day: string) {
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(day) &&
+    !Number.isNaN(Date.parse(day + "T00:00:00Z")) &&
+    new Date(day + "T00:00:00Z").toISOString().slice(0, 10) === day
+  );
+}
 export function learningDay(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en", {
     timeZone: "Asia/Seoul",

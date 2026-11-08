@@ -3509,3 +3509,12 @@ body:has(.dark-mode) {
 }
 
 .records-nav a:nth-child(2) svg { transform: scaleX(-1); }
+
+/* 기록 그래프는 저장된 제출 횟수에 비례합니다. 0회인 막대는 높이도 0입니다. */
+.records-bar-plot { height: 102px; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.records-bar-plot .records-bar-value { margin-bottom: 5px; flex-shrink: 0; }
+.records-bar { width: 100%; border-radius: 8px 8px 0 0; background: #dcdcd6; flex-shrink: 0; }
+.records-bar-column.current .records-bar { background: #111113; }
+.bottom-nav.records-nav > a.active { flex: 0 0 76px; min-width: 76px; }
+.bottom-nav.records-nav > a:last-child.active { flex: 0 0 112px; min-width: 112px; }
+.records-subject-score { white-space: nowrap; }
