@@ -7,6 +7,7 @@ import { POST as oldAI } from "../src/app/api/ai/route";
 import { GET as list, POST as create } from "../src/app/api/projects/route";
 import { GET as get, POST as act } from "../src/app/api/projects/[id]/route";
 import { sample } from "../src/lib/server/demo";
+import { learningDay } from "../src/lib/activity";
 function request(path: string, body?: unknown, cookie?: string) {
   return new Request("http://localhost" + path, {
     method: body === undefined ? "GET" : "POST",
@@ -116,6 +117,7 @@ test("API: 원문 비공개·사용자 격리·단계 검증·중복 방지·기
       text: "기억나는 내용을 설명합니다",
     });
     const version = p.version;
+    assert.equal(p.activity[learningDay()], 1);
     const retry = await act(request(path, submitted, cookie), context);
     assert.equal(retry.status, 200);
     assert.equal(
@@ -214,14 +216,26 @@ test("API: 원문 비공개·사용자 격리·단계 검증·중복 방지·기
     );
     await command("submit", { text: "최종 설명입니다" });
     assert.equal(p.studies[cid].phase, "done");
+    assert.ok(!Number.isNaN(Date.parse(p.studies[cid].completedAt)));
+    assert.equal(
+      p.activity[learningDay()],
+      5,
+      "첫 설명·답변 3개·최종 설명만 집계",
+    );
     assert.ok(p.studies[cid].initialFeedback);
     assert.ok(p.studies[cid].result);
     assert.equal(p.studies[cid].turns.length, 3);
     assert.equal(p.studies[cid].turns[0].hints.length, 2);
     assert.equal(p.studies[cid].evidenceViews.length, 1);
     const loaded = await list(request("/api/projects", undefined, cookie));
+    const restoredList = await loaded.json();
     assert.equal(
-      (await loaded.json()).projects[0].studies[cid].final,
+      restoredList.projects[0].activity[learningDay()],
+      5,
+      "새로 읽어도 저장된 집계를 반환",
+    );
+    assert.equal(
+      restoredList.projects[0].studies[cid].final,
       "최종 설명입니다",
     );
     const stale = await act(
@@ -291,7 +305,7 @@ test("API: 다른 사이트 요청과 용량 초과 입력 차단", async () => 
   );
   assert.equal(response.status, 403);
   const invalid = await create(
-    request("/api/projects", { sample: true, extra: "a".repeat(120) }),
+    request("/api/projects", { sample: true, extra: "a".repeat(20001) }),
   );
   assert.equal(invalid.status, 413);
 });

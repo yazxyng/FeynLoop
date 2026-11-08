@@ -263,6 +263,30 @@ test("API 통합: 로그인·PDF 분석·질문·근거·재설명·저장을 �
     ),
   );
   assert.equal(service.calls.storage, 1);
+  const textResponse = await create(
+    request("/api/projects", {
+      source: "text",
+      title: "텍스트 학습",
+      text: "인출 연습은 배운 내용을 보지 않고 기억에서 꺼내 설명하는 활동이다.",
+      mode: "live",
+    }),
+  );
+  assert.equal(textResponse.status, 201);
+  const textProject = (await textResponse.json()).project;
+  assert.equal(textProject.sourceType, "text");
+  assert.equal(textProject.mode, "live");
+  assert.equal(
+    service.records.get(textProject.id)?.pages[0].text,
+    "인출 연습은 배운 내용을 보지 않고 기억에서 꺼내 설명하는 활동이다.",
+  );
+  assert.ok(
+    !JSON.stringify(textProject).includes("기억에서 꺼내 설명하는 활동이다"),
+  );
+  assert.equal(
+    service.calls.storage,
+    1,
+    "텍스트 자료에는 PDF 파일 업로드를 하지 않음",
+  );
   const response = await create(
     request("/api/projects", { sample: true, mode: "live" }),
   );

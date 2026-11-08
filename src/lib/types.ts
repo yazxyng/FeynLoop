@@ -33,6 +33,7 @@ export type Feedback = z.infer<typeof feedbackSchema>;
 export type Turn = { question: string; answer: string; hints: string[] };
 export type EvidenceExcerpt = { page: number; text: string; viewedAt: string };
 export type Study = {
+  completedAt?: string;
   conceptId: string;
   first: string;
   final: string;
@@ -48,6 +49,8 @@ export type Study = {
   attempt: number;
 };
 export type Project = {
+  activity?: Record<string, number>;
+  sourceType?: "pdf" | "text";
   id: string;
   name: string;
   createdAt: string;

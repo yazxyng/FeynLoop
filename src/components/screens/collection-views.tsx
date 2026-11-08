@@ -197,7 +197,7 @@ export function HomeView({
                 : next.study
                   ? "이어서 설명하기"
                   : "설명 시작"
-              : "PDF로 카드 만들기"}
+              : "자료로 카드 만들기"}
           </ArrowButton>
         </section>
         <section
@@ -242,7 +242,7 @@ export function HomeView({
                 배움이 선명해져요.
               </h3>
               <p>
-                공부한 PDF를 넣으면
+                공부한 자료를 넣으면
                 <br />
                 하나씩 설명할 카드를 만들어요.
               </p>
@@ -341,7 +341,7 @@ export function LibraryView({
       {!all.length ? (
         <EmptyState
           title="아직 꺼내 볼 카드가 없어요"
-          description="PDF 하나로 나만의 카드함을 채워 보세요."
+          description="PDF나 텍스트로 나만의 카드함을 채워 보세요."
           onCreate={onCreate}
         />
       ) : !visible.length ? (
@@ -420,7 +420,10 @@ export function CardDetailView({
         <StageMeter study={project.studies[concept.id]} />
         <div className="detail-meta">
           <span>
-            관련 페이지 {concept.pages.map((p) => `p.${p}`).join(", ")}
+            관련 근거{" "}
+            {project.sourceType === "text"
+              ? "텍스트 원문"
+              : concept.pages.map((p) => `p.${p}`).join(", ")}
           </span>
           <span>{study.attempt}번째 학습</span>
         </div>
@@ -500,118 +503,4 @@ export function CardDetailView({
   );
 }
 
-export function RecordsView({
-  projects,
-  busy,
-  onSelect,
-  onCreate,
-}: {
-  projects: Project[];
-  busy: boolean;
-  onSelect: (entry: CardEntry) => void;
-  onCreate: () => void;
-}) {
-  const entries = cardsOf(projects),
-    done = entries.filter((c) => c.study?.phase === "done"),
-    active = entries.filter((c) => c.study && c.study.phase !== "done"),
-    answers = entries.reduce((n, c) => n + (c.study?.turns.length || 0), 0);
-  const chart = projects.slice(0, 6),
-    max = Math.max(1, ...chart.map(completedCards));
-  return (
-    <>
-      <PageTitle
-        title="기록"
-        description="내 말로 설명하며 지나온 자리"
-        action={<span className="status-pill white">현재 학습 기록</span>}
-      />
-      <div className="record-stats">
-        {[
-          ["설명한 카드", done.length],
-          ["학습 중", active.length],
-          ["답한 질문", answers],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <span>{label}</span>
-            <strong>{value}</strong>
-          </div>
-        ))}
-      </div>
-      {entries.length ? (
-        <>
-          <section className="record-chart">
-            <div className="section-title">
-              <h2>문서별 설명 기록</h2>
-              <span>완료한 카드 수</span>
-            </div>
-            <p>마지막 재설명까지 마친 카드를 모았어요.</p>
-            <div className="bar-chart">
-              {chart.map((p, i) => (
-                <div className="bar-column" key={p.id}>
-                  <strong className={i === 0 ? "accent-badge" : ""}>
-                    {completedCards(p)}
-                  </strong>
-                  <div
-                    className={`chart-bar ${i === 0 ? "recent" : ""}`}
-                    style={{
-                      height: `${Math.max(5, (completedCards(p) / max) * 140)}px`,
-                    }}
-                  />
-                  <span title={p.name}>{documentTitle(p.name)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-          <aside className="insight-card">
-            <div>
-              <span className="loop-symbol" />
-              배움의 관찰
-            </div>
-            <p>
-              {done.length
-                ? `${done.length}개의 개념을 처음부터 다시 설명했어요. 내 설명이 어떻게 달라졌는지 돌아볼까요?`
-                : "아직 완성하지 못한 설명도 괜찮아요. 한 번의 질문이 다음 설명을 더 단단하게 만들어요."}
-            </p>
-          </aside>
-          <section className="record-projects">
-            <div className="section-title">
-              <h2>학습 프로젝트</h2>
-              <span>{projects.length}개</span>
-            </div>
-            <div className="queue-list">
-              {projects.map((p) => (
-                <button
-                  disabled={busy}
-                  key={p.id}
-                  onClick={() => {
-                    const entry =
-                      cardsOf([p]).find((c) => c.study?.phase === "done") ||
-                      cardsOf([p])[0];
-                    if (entry) onSelect(entry);
-                  }}
-                >
-                  <div>
-                    <strong>{documentTitle(p.name)}</strong>
-                    <small>
-                      {p.pageCount}페이지 · {p.concepts.length}개 카드
-                    </small>
-                  </div>
-                  <span
-                    className={`status-pill ${completedCards(p) ? "" : "subtle"}`}
-                  >
-                    {completedCards(p)} / {p.concepts.length}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        </>
-      ) : (
-        <EmptyState
-          title="설명할수록 기록이 쌓여요"
-          description="첫 PDF를 등록하고 한 개념을 나만의 말로 설명해 보세요."
-          onCreate={onCreate}
-        />
-      )}
-    </>
-  );
-}
+export { default as RecordsView } from "./records-view";

@@ -18,7 +18,7 @@ import type { Identity } from "./http";
 import { evaluate } from "./learning-ai";
 import { ApiError } from "./errors";
 import { loadProject, updateProject, withProjectLock } from "./store";
-import { learningDay } from "../activity";
+import { learningDay, validLearningDay } from "../activity";
 export const commandSchema = z
   .object({
     requestId: z.string().uuid(),
@@ -85,6 +85,7 @@ export function present(
     const concept = project.concepts.find((c) => c.id === id);
     studies[id] = {
       conceptId: s.conceptId,
+      ...(s.completedAt ? { completedAt: s.completedAt } : {}),
       first: s.first,
       final: s.final,
       turns: s.turns.map((t) => ({
@@ -116,6 +117,13 @@ export function present(
     name: project.name,
     createdAt: project.createdAt,
     pageCount: project.pageCount,
+    sourceType: project.sourceType || "pdf",
+    activity: Object.fromEntries(
+      Object.entries(project.activity || {}).filter(
+        ([day, count]) =>
+          validLearningDay(day) && Number.isSafeInteger(count) && count > 0,
+      ),
+    ),
     concepts: project.concepts.map((c) => ({ ...c, pages: [...c.pages] })),
     studies,
     version: project.version,
@@ -193,6 +201,7 @@ export async function applyCommand(record: StoredProject, command: Command) {
       if (final) {
         s.final = text;
         s.phase = "done";
+        s.completedAt = new Date().toISOString();
       } else s.phase = s.turns.length === 3 ? "review" : "questions";
       break;
     }
