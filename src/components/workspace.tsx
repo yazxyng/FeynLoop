@@ -27,7 +27,7 @@ import type { CardEntry } from "@/lib/presentation";
 import { documentTitle } from "@/lib/presentation";
 import StudyRoom from "./study-room";
 import LearningModeChoice from "./learning-mode";
-import EmailLogin from "./email-login";
+import PasswordLogin from "./password-login";
 import {
   HomeView,
   LibraryView,
@@ -64,7 +64,8 @@ export default function Workspace() {
     [operation, setOperation] = useState(
       "처리 중입니다. 잠시만 기다려 주세요.",
     ),
-    [authOpen, setAuthOpen] = useState(false);
+    [authOpen, setAuthOpen] = useState(false),
+    [passwordRecovery, setPasswordRecovery] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null),
     running = useRef(false),
     generation = useRef(0),
@@ -143,7 +144,11 @@ export default function Workspace() {
     void load(null);
     if (supabase) {
       let lastId: string | null = null;
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "PASSWORD_RECOVERY") {
+          setPasswordRecovery(true);
+          setAuthOpen(true);
+        }
         accessTokenRef.current = session?.access_token;
         const id = session?.user.id || null;
         if (id === lastId) return;
@@ -642,11 +647,20 @@ export default function Workspace() {
         </div>
       )}
       {authOpen && (
-        <EmailLogin
-          onClose={() => setAuthOpen(false)}
+        <PasswordLogin
+          recovery={passwordRecovery}
+          onClose={() => {
+            setAuthOpen(false);
+            setPasswordRecovery(false);
+          }}
           onSuccess={() => {
             setAuthOpen(false);
-            setNotice("로그인했습니다. 내 학습 기록을 불러옵니다.");
+            setPasswordRecovery(false);
+            setNotice(
+              passwordRecovery
+                ? "비밀번호를 저장했습니다. 다음부터 비밀번호로 로그인하세요."
+                : "로그인했습니다. 내 학습 기록을 불러옵니다.",
+            );
           }}
         />
       )}

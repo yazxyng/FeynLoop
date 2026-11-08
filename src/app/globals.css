@@ -2578,3 +2578,31 @@ body:has(.dark-mode) {
     font-size: 10px;
   }
 }
+
+.password-login form label:not(:first-child) {
+  margin-top: 16px;
+}
+.password-field {
+  position: relative;
+}
+.password-field input {
+  padding-right: 48px;
+}
+.password-field > button {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: #787a71;
+}
+.password-login .login-actions {
+  margin-top: 8px;
+}
+.password-login {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
