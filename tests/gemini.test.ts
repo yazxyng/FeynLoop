@@ -56,6 +56,62 @@ const resultSchema = z.object({
   count: z.number().int().default(1),
 });
 
+test("PDF용 중첩 스키마의 길이·정수·배열 제한은 전송에서 빼고 서버에서 검증한다", async (t) => {
+  environment(t);
+  const schema = z.object({
+    concepts: z
+      .array(
+        z.object({
+          title: z.string().min(1).max(150),
+          pages: z.array(z.number().int().positive()).min(1).max(150),
+        }),
+      )
+      .min(1)
+      .max(10),
+  });
+  let responseValue: unknown = { concepts: [{ title: "개념", pages: [1] }] };
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (_input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      const remote = body.generationConfig.responseJsonSchema;
+      const serialized = JSON.stringify(remote);
+      for (const key of [
+        "minLength",
+        "maxLength",
+        "exclusiveMinimum",
+        "maximum",
+        "minItems",
+        "maxItems",
+      ])
+        assert.ok(!serialized.includes(`"${key}"`), key);
+      assert.equal(
+        remote.properties.concepts.items.properties.pages.items.type,
+        "integer",
+      );
+      assert.deepEqual(remote.properties.concepts.items.required, [
+        "title",
+        "pages",
+      ]);
+      return success(responseValue);
+    },
+  );
+  assert.deepEqual(await generateGemini("지시", {}, schema), responseValue);
+  for (const invalid of [
+    { concepts: [] },
+    { concepts: [{ title: "", pages: [1] }] },
+    { concepts: [{ title: "개념", pages: [0] }] },
+    { concepts: [{ title: "개념", pages: Array(151).fill(1) }] },
+  ]) {
+    responseValue = invalid;
+    await assert.rejects(
+      generateGemini("지시", {}, schema),
+      (error) => (error as { status: number }).status === 502,
+    );
+  }
+});
+
 test("Gemini 헤더 수신 후 본문 읽기가 중단돼도 시간 초과로 안내한다", async (t) => {
   environment(t);
   t.mock.method(globalThis, "fetch", async () => ({
@@ -309,6 +365,24 @@ test("Gemini 개념 추출·평가: 기존 근거 검증과 첫 설명·직전 �
     evaluate(sample.pages, concepts[0], study, "설명", true, false),
     /근거/,
   );
+});
+
+test("짧은 PDF의 소수 개념은 허용하지만 빈 결과·10개 초과·없는 페이지는 거부한다", async (t) => {
+  environment(t);
+  let concepts = [sample.concepts[0]];
+  t.mock.method(globalThis, "fetch", async () => success({ concepts }));
+  assert.equal((await extractConcepts(sample.pages, true)).length, 1);
+  for (const invalid of [
+    [],
+    Array(11).fill(sample.concepts[0]),
+    [{ ...sample.concepts[0], pages: [999] }],
+  ]) {
+    concepts = invalid;
+    await assert.rejects(
+      extractConcepts(sample.pages, true),
+      (error) => (error as { status: number }).status === 502,
+    );
+  }
 });
 test("Gemini 한도 초과 시 서버의 학습 단계·초안·질문 이력을 유지한다", async (t) => {
   environment(t);

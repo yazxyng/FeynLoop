@@ -10,7 +10,7 @@ import { demoFeedback } from "./demo";
 import { ApiError } from "./errors";
 import { generateGemini } from "./gemini";
 const conceptsResponseSchema = z.object({
-  concepts: z.array(conceptSchema).min(5).max(10),
+  concepts: z.array(conceptSchema).min(1).max(10),
 });
 const assessmentResponseSchema = feedbackSchema.extend({
   hints: z.array(z.string().min(1).max(1000)).length(2),
@@ -46,11 +46,11 @@ export async function extractConcepts(
     }));
   }
   const parsed = await generateGemini(
-    '개념 5~10개를 학습 순서대로 추출하라. 정의나 정답을 노출하지 않는 짧은 개념 이름만 title로 제공하고 description은 학습 목표를 한 문장으로 작성하라. {concepts:[{id:문자열,title,description,pages:[제공한 실제 페이지 번호],importance:"높음"|"보통",order:정수}]}',
+    '개념 5~10개를 학습 순서대로 추출하라. 단, 짧은 문서에 독립적인 개념이 부족하면 1~4개도 허용한다. 개수를 채우려고 문서에 없는 내용이나 중복 개념을 만들지 마라. 정의나 정답을 노출하지 않는 짧은 개념 이름만 title로 제공하고 description은 학습 목표를 한 문장으로 작성하라. {concepts:[{id:문자열,title,description,pages:[제공한 실제 페이지 번호],importance:"높음"|"보통",order:정수}]}',
     { pages },
     conceptsResponseSchema,
   );
-  const concepts = z.array(conceptSchema).min(5).max(10).parse(parsed.concepts);
+  const concepts = conceptsResponseSchema.parse(parsed).concepts;
   const numbers = new Set(pages.map((p) => p.number));
   if (concepts.some((c) => c.pages.some((p) => !numbers.has(p))))
     throw new ApiError(502, "AI가 잘못된 근거 페이지를 반환했습니다.");

@@ -7,11 +7,25 @@ export function geminiConfigured() {
 }
 
 function responseSchema(schema: z.ZodType) {
-  // Gemini가 사용하는 JSON Schema 부분집합에 불필요한 메타데이터는 보내지 않습니다.
+  // 전송 스키마는 구조·필수 필드·enum만 제한합니다. Zod가 만드는 큰 정수 상한과
+  // 중첩 길이 제한은 Gemini의 스키마 처리에서 요청 거절을 일으킬 수 있습니다.
+  // 길이·개수·양수 등의 엄격한 검증은 응답을 받은 뒤 원래 Zod 스키마로 수행합니다.
+  const serverOnly = new Set([
+    "$schema",
+    "default",
+    "minLength",
+    "maxLength",
+    "minimum",
+    "maximum",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    "minItems",
+    "maxItems",
+  ]);
   const json = z.toJSONSchema(schema, { target: "draft-7", io: "output" });
   return JSON.parse(
     JSON.stringify(json, (key, value) =>
-      key === "$schema" || key === "default" ? undefined : value,
+      serverOnly.has(key) ? undefined : value,
     ),
   );
 }
