@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { ArrowRight, FileText, MessageCircle, Sparkles } from "lucide-react";
-import { useWorkspace } from "./workspace-provider";
 
 const steps = [
   {
@@ -22,7 +21,6 @@ const steps = [
 ];
 
 export default function Welcome() {
-  const { enterDemo, configuration } = useWorkspace();
   return (
     <main className="welcome-page">
       <header className="welcome-header">
@@ -49,11 +47,6 @@ export default function Welcome() {
         <Link href="/login" className="welcome-start">
           내 학습 시작하기 <ArrowRight size={21} />
         </Link>
-        {configuration?.demoAllowed && (
-          <button className="welcome-demo" onClick={enterDemo}>
-            가입 전에 데모로 둘러보기
-          </button>
-        )}
       </section>
       <section className="welcome-steps" aria-label="FeynLoop 학습 방법">
         {steps.map(({ icon: Icon, title, text }, index) => (
