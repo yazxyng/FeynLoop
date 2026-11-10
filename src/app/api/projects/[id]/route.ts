@@ -33,7 +33,7 @@ export async function POST(req: Request, context: Context) {
         .uuid()
         .parse((await context.params).id),
       id = await identity(req);
-    const command = commandSchema.parse(await readJson(req));
+    const command = commandSchema.parse(await readJson(req, 100000));
     return json({ project: await execute(id, projectId, command) }, id);
   } catch (e) {
     return failure(e);

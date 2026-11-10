@@ -1,3 +1,5 @@
+import { readBody } from "@/lib/server/request-body";
+import { limitUsage } from "@/lib/server/usage-limit";
 import { z } from "zod";
 import {
   identity,
@@ -32,6 +34,7 @@ export async function POST(req: Request) {
   try {
     guardOrigin(req);
     const id = await identity(req);
+    await limitUsage(id, "import");
     let name: string, pages: SourcePage[], concepts;
     let file: File | undefined;
     let sourceType: "pdf" | "text" = "pdf";
@@ -67,30 +70,7 @@ export async function POST(req: Request) {
     } else {
       if (!req.headers.get("content-type")?.startsWith("multipart/form-data;"))
         throw new ApiError(415, "PDF 파일 업로드 형식이 올바르지 않습니다.");
-      const length = Number(req.headers.get("content-length"));
-      if (length > MAX_PDF_BYTES + 100000)
-        throw new ApiError(413, "20MB 이하 PDF를 선택해 주세요.");
-      // multipart 전체를 먼저 제한하여 Content-Length가 없는 요청도 메모리를 무제한 점유하지 않게 합니다.
-      const reader = req.body?.getReader();
-      if (!reader) throw new ApiError(400, "PDF 파일이 필요합니다.");
-      let size = 0;
-      const chunks: Uint8Array[] = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        size += value.length;
-        if (size > MAX_PDF_BYTES + 100000) {
-          await reader.cancel();
-          throw new ApiError(413, "20MB 이하 PDF를 선택해 주세요.");
-        }
-        chunks.push(value);
-      }
-      const bytes = new Uint8Array(size);
-      let offset = 0;
-      for (const c of chunks) {
-        bytes.set(c, offset);
-        offset += c.length;
-      }
+      const bytes = await readBody(req, MAX_PDF_BYTES + 100000, 30_000);
       const form = await new Request(req.url, {
         method: "POST",
         headers: { "Content-Type": req.headers.get("content-type") || "" },

@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { ApiError } from "./errors";
+import { boundedServiceFetch } from "./database";
+import { demoAllowed } from "./demo-policy";
+import { readBody } from "./request-body";
 import { accountToken, currentAccount } from "./auth/session";
 export type Identity = {
   owner: string;
@@ -21,7 +24,7 @@ export async function identity(req: Request): Promise<Identity> {
   }
   const authorization = req.headers.get("authorization");
   if (authorization) {
-    if (!/^Bearer \S+$/.test(authorization))
+    if (authorization.length > 8192 || !/^Bearer \S+$/.test(authorization))
       throw new ApiError(401, "로그인이 올바르지 않습니다.");
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL,
       key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -29,6 +32,7 @@ export async function identity(req: Request): Promise<Identity> {
       throw new ApiError(503, "Supabase 인증 설정이 필요합니다.");
     const client = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: boundedServiceFetch },
     });
     const { data, error } = await client.auth.getUser(authorization.slice(7));
     if (error || !data.user)
@@ -40,8 +44,7 @@ export async function identity(req: Request): Promise<Identity> {
       );
     return { owner: `user:${data.user.id}`, userId: data.user.id };
   }
-  if (process.env.ALLOW_DEMO === "false")
-    throw new ApiError(401, "로그인 후 이용해 주세요.");
+  if (!demoAllowed()) throw new ApiError(401, "로그인 후 이용해 주세요.");
   const found = req.headers
     .get("cookie")
     ?.split(";")
@@ -95,8 +98,17 @@ export function json(data: unknown, id?: Identity, status = 200) {
   return response;
 }
 export function failure(error: unknown) {
-  if (error instanceof ApiError)
-    return json({ error: error.message }, undefined, error.status);
+  if (error instanceof ApiError) {
+    const response = json({ error: error.message }, undefined, error.status);
+    if (
+      "retryAfter" in error &&
+      typeof error.retryAfter === "number" &&
+      Number.isFinite(error.retryAfter) &&
+      error.retryAfter > 0
+    )
+      response.headers.set("Retry-After", String(Math.ceil(error.retryAfter)));
+    return response;
+  }
   if (error instanceof z.ZodError || error instanceof SyntaxError)
     return json(
       { error: "요청 또는 AI 응답 형식이 올바르지 않습니다." },
@@ -117,25 +129,5 @@ export function failure(error: unknown) {
   );
 }
 export async function readJson(req: Request, max = 40000) {
-  const reader = req.body?.getReader();
-  if (!reader) throw new ApiError(400, "요청 내용이 필요합니다.");
-  let size = 0;
-  const chunks: Uint8Array[] = [];
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > max) {
-      await reader.cancel();
-      throw new ApiError(413, "요청 크기를 줄여 주세요.");
-    }
-    chunks.push(value);
-  }
-  const all = new Uint8Array(size);
-  let at = 0;
-  for (const chunk of chunks) {
-    all.set(chunk, at);
-    at += chunk.length;
-  }
-  return JSON.parse(new TextDecoder().decode(all));
+  return JSON.parse(new TextDecoder().decode(await readBody(req, max)));
 }

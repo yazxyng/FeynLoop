@@ -15,6 +15,7 @@ import type {
   SourcePage,
 } from "./models";
 import type { Identity } from "./http";
+import { limitUsage } from "./usage-limit";
 import { evaluate } from "./learning-ai";
 import { ApiError } from "./errors";
 import { loadProject, updateProject, withProjectLock } from "./store";
@@ -285,6 +286,9 @@ export async function execute(
         409,
         "다른 화면에서 학습 기록이 변경됐습니다. 새로고침 후 다시 시도해 주세요.",
       );
+    // 이미 성공한 요청의 재전송은 위 영수증 확인에서 반환해 한도를 다시 차감하지 않습니다.
+    if (command.action === "submit" && record.project.mode === "live")
+      await limitUsage(id, "feedback");
     const next = await applyCommand(record, command);
     if (command.action === "submit") {
       const day = learningDay();

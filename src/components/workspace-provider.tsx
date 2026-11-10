@@ -81,6 +81,7 @@ function useWorkspaceController() {
     try {
       sessionStorage.setItem("feynloop:demo-access", "true");
     } catch {}
+    setAuthVersion((version) => version + 1);
   }
   const uploadRef = useRef<HTMLInputElement>(null),
     running = useRef(false),
@@ -111,10 +112,12 @@ function useWorkspaceController() {
       if (localStorage.getItem("feynloop:learning-mode") === "live")
         setLearningMode("live");
     } catch {}
-    fetch("/api/config")
+    const configurationRequest = fetch("/api/config", {
+      signal: AbortSignal.timeout(10_000),
+    })
       .then((r) => r.json())
-      .then((d) => setConfiguration(appConfigurationSchema.parse(d)))
-      .catch(() => {});
+      .then((d) => appConfigurationSchema.parse(d))
+      .catch(() => null);
     let active = true;
     const current = ++generation.current;
     async function loadAccount() {
@@ -128,8 +131,12 @@ function useWorkspaceController() {
       setError("");
       setUserId(null);
       try {
-        const { user } = await accountRequest();
+        const [{ user }, config] = await Promise.all([
+          accountRequest(),
+          configurationRequest,
+        ]);
         if (!active || current !== generation.current) return;
+        setConfiguration(config);
         setUserId(user?.id || null);
         if (user) {
           setLearningMode("live");
@@ -139,6 +146,18 @@ function useWorkspaceController() {
               setLearningMode("demo");
             sessionStorage.removeItem("feynloop:demo-access");
           } catch {}
+        }
+        // 소개·로그인 화면에서는 비로그인 학습 API를 호출하지 않습니다.
+        // 데모도 서버가 허용하고 이 탭에서 명시적으로 선택한 경우만 읽습니다.
+        if (!user) {
+          let requestedDemo = false;
+          try {
+            requestedDemo =
+              sessionStorage.getItem("feynloop:demo-access") === "true";
+          } catch {}
+          const guestAccess = Boolean(config?.demoAllowed && requestedDemo);
+          setDemoAccess(guestAccess);
+          if (!guestAccess) return;
         }
         const data = await api("/api/projects");
         if (active && current === generation.current)
