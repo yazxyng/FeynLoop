@@ -1,9 +1,11 @@
+import { RequestError, responseRequestId } from "./request-error";
 import type { AccountProfile } from "./profile-types";
 import { AccountRequestError } from "./account-client";
 
 export async function profileRequest(
   body?: Record<string, string>,
 ): Promise<{ profile?: AccountProfile; saved?: boolean }> {
+  let requestId: string | undefined;
   try {
     const response = await fetch("/api/account/profile", {
       method: body ? "POST" : "GET",
@@ -17,11 +19,15 @@ export async function profileRequest(
           }
         : {}),
     });
+    requestId = responseRequestId(response);
     const result = await response.json().catch(() => {
       throw new AccountRequestError(
         "계정 서버 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+        0,
+        requestId,
       );
     });
+    requestId = responseRequestId(response, result);
     if (!response.ok)
       throw new AccountRequestError(
         typeof result?.error === "string"
@@ -30,13 +36,18 @@ export async function profileRequest(
         response.status === 429
           ? Number(response.headers.get("Retry-After")) || 60
           : 0,
+        requestId,
       );
     if (
       !result ||
       typeof result !== "object" ||
       (!result.profile && result.saved !== true)
     )
-      throw new AccountRequestError("계정 정보를 확인하지 못했어요.");
+      throw new AccountRequestError(
+        "계정 정보를 확인하지 못했어요.",
+        0,
+        requestId,
+      );
     return result;
   } catch (error) {
     if (error instanceof AccountRequestError) throw error;
@@ -45,6 +56,8 @@ export async function profileRequest(
         ["TimeoutError", "AbortError"].includes(error.name)
         ? "계정 요청 응답이 늦어지고 있어요. 저장 상태를 확인한 뒤 다시 시도해 주세요."
         : "계정 서버에 연결하지 못했어요. 연결 상태를 확인해 주세요.",
+      0,
+      requestId,
     );
   }
 }
@@ -62,8 +75,18 @@ export async function importLegacyRecords() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: data.session.access_token }),
   });
-  const result = await response.json();
+  const result = await response.json().catch(() => {
+    throw new RequestError(
+      "이전 기록의 응답을 확인하지 못했어요.",
+      responseRequestId(response),
+    );
+  });
   if (!response.ok)
-    throw new Error(result.error || "이전 기록을 가져오지 못했습니다.");
+    throw new RequestError(
+      typeof result?.error === "string"
+        ? result.error
+        : "이전 기록을 가져오지 못했습니다.",
+      responseRequestId(response, result),
+    );
   return result.imported as number;
 }

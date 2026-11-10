@@ -133,7 +133,11 @@ test("탭 알림 전송이 실패해도 로그인 성공을 유지하고 채널�
 });
 
 test("응답 본문을 읽는 중 시간 초과도 가입 상태 확인 안내로 처리한다", async (t) => {
-  const response = Response.json({ user: null });
+  const requestId = "f9db3783-22db-43c8-98c6-8f8889210def";
+  const response = Response.json(
+    { user: null },
+    { headers: { "X-Request-ID": requestId } },
+  );
   t.mock.method(response, "json", async () => {
     throw new DOMException("timeout", "AbortError");
   });
@@ -142,7 +146,8 @@ test("응답 본문을 읽는 중 시간 초과도 가입 상태 확인 안내�
     accountRequest("signup"),
     (error) =>
       error instanceof AccountRequestError &&
-      error.message.includes("같은 아이디로 로그인"),
+      error.message.includes("같은 아이디로 로그인") &&
+      error.requestId === requestId,
   );
 });
 

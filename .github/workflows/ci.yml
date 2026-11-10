@@ -28,7 +28,6 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ""
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
       ALLOW_DEMO: "false"
-      FEYNLOOP_DATA_DIR: ${{ runner.temp }}/feynloop-ci-data
 
     steps:
       - name: Check out code
@@ -44,6 +43,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+
+      # runner 경로는 작업 시작 후 사용할 수 있으므로 다음 단계들의 환경변수로 전달합니다.
+      - name: Set isolated data directory
+        run: echo "FEYNLOOP_DATA_DIR=${RUNNER_TEMP}/feynloop-ci-data" >> "$GITHUB_ENV"
 
       # 새 체크아웃에는 .next가 없으므로 타입 검사 전에 경로 타입을 생성합니다.
       - name: Generate route types

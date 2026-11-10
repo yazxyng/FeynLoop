@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { currentRequestId, logRequestFailure } from "./diagnostics";
 import { ApiError } from "./errors";
 import { boundedServiceFetch } from "./database";
 import { demoAllowed } from "./demo-policy";
@@ -83,9 +84,19 @@ export function guardOrigin(req: Request) {
     throw new ApiError(403, "다른 사이트에서의 요청은 허용하지 않습니다.");
 }
 export function json(data: unknown, id?: Identity, status = 200) {
-  const response = NextResponse.json(data, {
+  const requestId =
+    status >= 400 ? logRequestFailure(status) : currentRequestId();
+  const payload =
+    status >= 400 && data && typeof data === "object" && !Array.isArray(data)
+      ? { ...data, requestId }
+      : data;
+  const response = NextResponse.json(payload, {
     status,
-    headers: { "Cache-Control": "no-store", Vary: "Cookie, Authorization" },
+    headers: {
+      "Cache-Control": "no-store",
+      Vary: "Cookie, Authorization",
+      ...(requestId ? { "X-Request-ID": requestId } : {}),
+    },
   });
   if (id?.cookie)
     response.cookies.set(DEMO_COOKIE, id.cookie, {
@@ -115,10 +126,6 @@ export function failure(error: unknown) {
       undefined,
       400,
     );
-  console.error(
-    "FeynLoop request failed:",
-    error instanceof Error ? error.name : "UnknownError",
-  );
   return json(
     {
       error:

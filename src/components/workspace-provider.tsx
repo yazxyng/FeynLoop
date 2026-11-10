@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { errorRequestId as diagnosticId } from "@/lib/request-error";
 import { accountRequest } from "@/lib/account-client";
 import { workspaceRequest as api } from "@/lib/workspace-request";
 import { draftRecoveryKey, recoverDraft } from "@/lib/draft-recovery";
@@ -52,12 +53,13 @@ function useWorkspaceController() {
     [routeLoading, setRouteLoading] = useState(false),
     [routeReadPath, setRouteReadPath] = useState(""),
     [routeError, setRouteError] = useState(""),
+    [routeErrorRequestId, setRouteErrorRequestId] = useState<string>(),
     [routeVersion, setRouteVersion] = useState(0),
     [busyPresentation, setBusyPresentation] = useState<
       "dialog" | "reply" | "inline"
     >("dialog"),
     [pendingMessage, setPendingMessage] = useState<string | null>(null),
-    [error, setError] = useState(""),
+    [error, setErrorText] = useState(""),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
     [collectionId, setCollectionId] = useState(""),
@@ -72,6 +74,15 @@ function useWorkspaceController() {
     ),
     [demoAccess, setDemoAccess] = useState(false),
     [authVersion, setAuthVersion] = useState(0);
+  const [errorRequestId, setErrorRequestId] = useState<string>();
+  function setError(message: string) {
+    setErrorText(message);
+    setErrorRequestId(undefined);
+  }
+  function reportError(error: unknown, fallback: string) {
+    setErrorText(error instanceof Error ? error.message : fallback);
+    setErrorRequestId(diagnosticId(error));
+  }
   function setAuthOpen(open: boolean) {
     if (open) router.push("/login");
   }
@@ -164,9 +175,7 @@ function useWorkspaceController() {
           setProjects(data.projects);
       } catch (error) {
         if (active && current === generation.current)
-          setError(
-            error instanceof Error ? error.message : "기록을 읽지 못했습니다.",
-          );
+          reportError(error, "기록을 읽지 못했습니다.");
       } finally {
         if (active && current === generation.current) setReady(true);
       }
@@ -259,9 +268,7 @@ function useWorkspaceController() {
         currentPath.current === pathname &&
         requestGeneration === generation.current
       )
-        setError(
-          e instanceof Error ? e.message : "작업을 완료하지 못했습니다.",
-        );
+        reportError(e, "작업을 완료하지 못했습니다.");
     } finally {
       running.current = false;
       setBusy(false);
@@ -495,11 +502,7 @@ function useWorkspaceController() {
         });
       } catch (error) {
         if (active && current === generation.current)
-          setError(
-            error instanceof Error
-              ? error.message
-              : "최신 학습 기록을 읽지 못했어요.",
-          );
+          reportError(error, "최신 학습 기록을 읽지 못했어요.");
       } finally {
         loading = false;
       }
@@ -519,12 +522,14 @@ function useWorkspaceController() {
     if (!ready || !projectId) {
       setRouteLoading(false);
       setRouteError("");
+      setRouteErrorRequestId(undefined);
       return;
     }
     let active = true;
     const current = generation.current;
     setRouteLoading(true);
     setRouteError("");
+    setRouteErrorRequestId(undefined);
     const focus = conceptId
       ? `?conceptId=${encodeURIComponent(conceptId)}`
       : "";
@@ -539,12 +544,14 @@ function useWorkspaceController() {
         accept(loaded);
       })
       .catch((error) => {
-        if (active && current === generation.current)
+        if (active && current === generation.current) {
           setRouteError(
             error instanceof Error
               ? error.message
               : "학습 자료를 읽지 못했어요.",
           );
+          setRouteErrorRequestId(diagnosticId(error));
+        }
       })
       .finally(() => {
         if (active && current === generation.current) {
@@ -631,6 +638,7 @@ function useWorkspaceController() {
     operation,
     busyPresentation,
     error,
+    errorRequestId,
     notice,
     setError,
     setNotice,
@@ -644,6 +652,7 @@ function useWorkspaceController() {
     screenLoading,
     routeUnavailable,
     routeError,
+    routeErrorRequestId,
     retryRoute: () => setRouteVersion((value) => value + 1),
     selectMode,
   };

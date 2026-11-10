@@ -2,6 +2,11 @@ import type { NextResponse } from "next/server";
 import type { AccountUser } from "@/lib/account-types";
 import { database } from "../database";
 import { ApiError } from "../errors";
+import {
+  setDiagnosticStage,
+  setDiagnosticCode,
+  type DiagnosticStage,
+} from "../diagnostics";
 import { secretHash } from "./crypto";
 
 export const ACCOUNT_COOKIE = "feynloop_account_v1";
@@ -14,13 +19,12 @@ export function accountToken(req: Request) {
     .find((part) => part.startsWith(ACCOUNT_COOKIE + "="))
     ?.slice(ACCOUNT_COOKIE.length + 1);
 }
-export function databaseFailure(error?: { code?: string }, stage = "account") {
-  // 계정·비밀번호·DB 오류 원문을 기록하지 않고 실패 단계와 코드만 남깁니다.
-  console.error(
-    "FeynLoop account storage:",
-    stage,
-    error?.code || "connection",
-  );
+export function databaseFailure(
+  error?: { code?: string },
+  stage: DiagnosticStage = "account",
+) {
+  setDiagnosticStage(stage);
+  setDiagnosticCode(error?.code);
   return new ApiError(
     503,
     "계정 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.",
@@ -32,6 +36,7 @@ export async function currentAccount(
   const token = accountToken(req);
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   const client = database();
+  setDiagnosticStage("read-session");
   const session = await client
     .from("feynloop_sessions")
     .select("account_id")
@@ -40,6 +45,7 @@ export async function currentAccount(
     .maybeSingle();
   if (session.error) throw databaseFailure(session.error, "read-session");
   if (!session.data) return null;
+  setDiagnosticStage("read-account");
   const account = await client
     .from("feynloop_accounts")
     .select("id,username")
@@ -68,6 +74,7 @@ export function setAccountCookie(
 export async function revokeSession(req: Request) {
   const token = accountToken(req);
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return;
+  setDiagnosticStage("revoke-session");
   const { error } = await database()
     .from("feynloop_sessions")
     .delete()

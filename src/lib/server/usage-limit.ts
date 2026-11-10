@@ -1,3 +1,4 @@
+import { setDiagnosticStage } from "./diagnostics";
 import type { Identity } from "./http";
 import { database } from "./database";
 import { secretHash } from "./auth/crypto";
@@ -20,6 +21,7 @@ class UsageLimit extends ApiError {
 
 /** 로그인 사용자는 DB에서 공유하며, 로컬 데모만 프로세스 내부 제한을 사용합니다. */
 export async function limitUsage(id: Identity, operation: Operation) {
+  setDiagnosticStage("request-limit");
   const rule = limits[operation];
   const key = secretHash(`usage:${operation}:${id.owner}`);
   if (id.userId) {

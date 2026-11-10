@@ -1,3 +1,4 @@
+import { setDiagnosticStage } from "./diagnostics";
 import { z } from "zod";
 import {
   conceptSchema,
@@ -53,6 +54,7 @@ export async function extractConcepts(
       order: i + 1,
     }));
   }
+  setDiagnosticStage("extract-concepts");
   const parsed = await generateGemini(
     '개념 5~10개를 학습 순서대로 추출하라. 단, 짧은 문서에 독립적인 개념이 부족하면 1~4개도 허용한다. 개수를 채우려고 문서에 없는 내용이나 중복 개념을 만들지 마라. 페이지 번호나 “핵심 개념”, “주요 내용” 같은 일반적인 표현을 제목으로 쓰지 말고, 학습자가 무엇을 설명할지 알 수 있는 구체적인 개념명을 사용하라. 정의나 정답을 노출하지 않는 짧은 개념 이름만 title로 제공하고 description은 학습 목표를 한 문장으로 작성하라. {concepts:[{id:문자열,title,description,pages:[제공한 실제 페이지 번호],importance:"높음"|"보통",order:정수}]}',
     { pages },
@@ -183,6 +185,7 @@ export async function evaluate(
       ],
     };
   }
+  setDiagnosticStage("evaluate");
   const parsed = await generateGemini(
     evaluationInstruction(final, study.turns.length),
     {

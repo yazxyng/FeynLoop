@@ -1,3 +1,4 @@
+import { withDiagnostics, setDiagnosticStage } from "@/lib/server/diagnostics";
 import { z } from "zod";
 import {
   identity,
@@ -12,30 +13,46 @@ export const runtime = "nodejs";
 export const maxDuration = 180;
 type Context = { params: Promise<{ id: string }> };
 export async function GET(req: Request, context: Context) {
-  try {
-    const projectId = z
+  return withDiagnostics("projects.get", async () => {
+    try {
+      setDiagnosticStage("validate");
+      const projectId = z
         .string()
         .uuid()
-        .parse((await context.params).id),
-      id = await identity(req);
-    const record = await loadProject(id, projectId);
-    const focus = new URL(req.url).searchParams.get("conceptId") || undefined;
-    return json({ project: present(record.project, record.pages, focus) }, id);
-  } catch (e) {
-    return failure(e);
-  }
+        .parse((await context.params).id);
+      setDiagnosticStage("authenticate");
+      const id = await identity(req);
+      setDiagnosticStage("read-storage");
+      const record = await loadProject(id, projectId);
+      const focus = new URL(req.url).searchParams.get("conceptId") || undefined;
+      return json(
+        { project: present(record.project, record.pages, focus) },
+        id,
+      );
+    } catch (e) {
+      return failure(e);
+    }
+  });
 }
+
 export async function POST(req: Request, context: Context) {
-  try {
-    guardOrigin(req);
-    const projectId = z
+  return withDiagnostics("projects.update", async () => {
+    try {
+      setDiagnosticStage("origin");
+      guardOrigin(req);
+      setDiagnosticStage("validate");
+      const projectId = z
         .string()
         .uuid()
-        .parse((await context.params).id),
-      id = await identity(req);
-    const command = commandSchema.parse(await readJson(req, 100000));
-    return json({ project: await execute(id, projectId, command) }, id);
-  } catch (e) {
-    return failure(e);
-  }
+        .parse((await context.params).id);
+      setDiagnosticStage("authenticate");
+      const id = await identity(req);
+      const body = await readJson(req, 100000);
+      setDiagnosticStage("validate");
+      const command = commandSchema.parse(body);
+      return json({ project: await execute(id, projectId, command) }, id);
+    } catch (e) {
+      return failure(e);
+    }
+  });
 }

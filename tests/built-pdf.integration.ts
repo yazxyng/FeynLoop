@@ -89,6 +89,15 @@ test(
         ?.includes("frame-ancestors 'none'"),
     );
     assert.equal(pageResponse.headers.get("x-powered-by"), null);
+    const failedLogin = await fetch(base + "/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: base },
+      body: JSON.stringify({ action: "signup", username: "!", password: "" }),
+    });
+    assert.equal(failedLogin.status, 400);
+    const failedBody = await failedLogin.json();
+    assert.match(failedBody.requestId, /^[0-9a-f-]{36}$/);
+    assert.equal(failedBody.requestId, failedLogin.headers.get("X-Request-ID"));
     const form = new FormData();
     form.set("mode", "demo");
     form.set(

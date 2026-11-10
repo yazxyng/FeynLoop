@@ -1,3 +1,4 @@
+import { setDiagnosticStage } from "./diagnostics";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
@@ -260,6 +261,7 @@ export async function execute(
   command: Command,
 ) {
   return withProjectLock(id, projectId, async () => {
+    setDiagnosticStage("read-storage");
     const record = await loadProject(id, projectId);
     const fingerprint = createHash("sha256")
       .update(
@@ -289,6 +291,7 @@ export async function execute(
     // 이미 성공한 요청의 재전송은 위 영수증 확인에서 반환해 한도를 다시 차감하지 않습니다.
     if (command.action === "submit" && record.project.mode === "live")
       await limitUsage(id, "feedback");
+    setDiagnosticStage("validate");
     const next = await applyCommand(record, command);
     if (command.action === "submit") {
       const day = learningDay();
@@ -302,6 +305,7 @@ export async function execute(
       ...next.receipts,
       { id: command.requestId, fingerprint },
     ].slice(-30);
+    setDiagnosticStage("write-storage");
     await updateProject(id, next, record.project.version);
     return present(next, record.pages, command.conceptId);
   });

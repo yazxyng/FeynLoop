@@ -1,13 +1,15 @@
+import { RequestError, responseRequestId } from "./request-error";
 import { z } from "zod";
 import { accountUserSchema, type AccountUser } from "./account-types";
 
 export type AccountResult = { user: AccountUser | null; recoveryCode?: string };
-export class AccountRequestError extends Error {
+export class AccountRequestError extends RequestError {
   constructor(
     message: string,
     public retryAfter = 0,
+    requestId?: string,
   ) {
-    super(message);
+    super(message, requestId);
   }
 }
 
@@ -42,6 +44,7 @@ export async function accountRequest(
   action?: string,
   fields: Record<string, string> = {},
 ): Promise<AccountResult> {
+  let requestId: string | undefined;
   try {
     const response = await fetch("/api/auth/session", {
       method: action ? "POST" : "GET",
@@ -55,9 +58,11 @@ export async function accountRequest(
           }
         : {}),
     });
+    requestId = responseRequestId(response);
     let data: unknown;
     try {
       data = await response.json();
+      requestId = responseRequestId(response, data);
     } catch (error) {
       if (
         error instanceof Error &&
@@ -66,6 +71,8 @@ export async function accountRequest(
         throw error;
       throw new AccountRequestError(
         "로그인 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        0,
+        requestId,
       );
     }
     if (!response.ok) {
@@ -84,6 +91,7 @@ export async function accountRequest(
             ? Math.ceil(retry)
             : 60
           : 0,
+        requestId,
       );
     }
     const parsed = responseSchema.safeParse(data);
@@ -96,6 +104,8 @@ export async function accountRequest(
     )
       throw new AccountRequestError(
         "로그인 응답을 확인하지 못했습니다. 입력 내용은 유지돼요.",
+        0,
+        requestId,
       );
     if (action) notifyAccountChanged();
     return parsed.data;
@@ -106,6 +116,8 @@ export async function accountRequest(
         ["TimeoutError", "AbortError"].includes(error.name)
         ? "응답이 늦어지고 있어요. 가입 요청이었다면 먼저 같은 아이디로 로그인을 확인해 주세요."
         : "로그인 서버에 연결하지 못했어요. 연결 상태를 확인해 주세요.",
+      0,
+      requestId,
     );
   }
 }
