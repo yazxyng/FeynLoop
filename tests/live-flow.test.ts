@@ -48,7 +48,8 @@ function mockServices(t: TestContext) {
       version: number;
     }
   >();
-  const calls = { gemini: 0, storage: 0 };
+  const calls = { gemini: 0, storage: 0, limit: 0 };
+  let usageWait = 0;
   let failGemini = false;
   t.mock.method(
     globalThis,
@@ -126,6 +127,10 @@ function mockServices(t: TestContext) {
         "mock-server-key",
         "서버 저장소는 사용자 토큰과 분리",
       );
+      if (url.pathname === "/rest/v1/rpc/feynloop_auth_attempt") {
+        calls.limit++;
+        return Response.json(usageWait);
+      }
       if (url.pathname.startsWith("/storage/v1/object/")) {
         calls.storage++;
         return Response.json({
@@ -184,6 +189,9 @@ function mockServices(t: TestContext) {
   return {
     records,
     calls,
+    setUsageWait: (seconds: number) => {
+      usageWait = seconds;
+    },
     setFailure: (value: boolean) => {
       failGemini = value;
     },
@@ -367,4 +375,55 @@ test("API 통합: 로그인·PDF 분석·질문·근거·재설명·저장을 �
     context,
   );
   assert.equal(other.status, 404);
+});
+
+test("사용 한도를 초과하면 AI 호출·저장을 시작하지 않고 성공 요청 재전송은 다시 차감하지 않는다", async (t) => {
+  environment(t);
+  const service = mockServices(t);
+  service.setUsageWait(42);
+  const blockedImport = await create(
+    request("/api/projects", { sample: true, mode: "live" }),
+  );
+  assert.equal(blockedImport.status, 429);
+  assert.equal(blockedImport.headers.get("Retry-After"), "42");
+  assert.equal(service.calls.gemini, 0);
+  assert.equal(service.records.size, 0);
+  service.setUsageWait(0);
+  const created = await create(
+    request("/api/projects", { sample: true, mode: "live" }),
+  );
+  assert.equal(created.status, 201);
+  const p = (await created.json()).project;
+  const path = `/api/projects/${p.id}`;
+  const context = { params: Promise.resolve({ id: p.id }) };
+  const base = {
+    conceptId: p.concepts[0].id,
+    requestId: crypto.randomUUID(),
+    version: 0,
+  };
+  assert.equal(
+    (await act(request(path, { ...base, action: "start" }), context)).status,
+    200,
+  );
+  const before = structuredClone(service.records.get(p.id));
+  const aiBefore = service.calls.gemini;
+  const submission = {
+    ...base,
+    version: 1,
+    requestId: crypto.randomUUID(),
+    action: "submit",
+    text: "기억에서 꺼내 설명하는 과정이야",
+  };
+  service.setUsageWait(42);
+  const blockedSubmit = await act(request(path, submission), context);
+  assert.equal(blockedSubmit.status, 429);
+  assert.equal(blockedSubmit.headers.get("Retry-After"), "42");
+  assert.equal(service.calls.gemini, aiBefore);
+  assert.deepEqual(service.records.get(p.id), before);
+  service.setUsageWait(0);
+  assert.equal((await act(request(path, submission), context)).status, 200);
+  const used = service.calls.limit;
+  assert.equal((await act(request(path, submission), context)).status, 200);
+  assert.equal(service.calls.limit, used);
+  assert.equal(service.calls.gemini, aiBefore + 1);
 });

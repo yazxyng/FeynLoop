@@ -309,3 +309,69 @@ test("API: 다른 사이트 요청과 용량 초과 입력 차단", async () => 
   );
   assert.equal(invalid.status, 413);
 });
+
+test("15,000자 한국어 초안은 UTF-8 바이트 크기 때문에 거부하지 않는다", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "feynloop-long-draft-"));
+  const previous = {
+    FEYNLOOP_DATA_DIR: process.env.FEYNLOOP_DATA_DIR,
+    ALLOW_DEMO: process.env.ALLOW_DEMO,
+  };
+  Object.assign(process.env, { FEYNLOOP_DATA_DIR: folder, ALLOW_DEMO: "true" });
+  try {
+    const created = await create(request("/api/projects", { sample: true }));
+    assert.equal(created.status, 201);
+    const cookie = created.headers.get("set-cookie")!.split(";")[0];
+    const p = (await created.json()).project;
+    const path = `/api/projects/${p.id}`;
+    const context = { params: Promise.resolve({ id: p.id }) };
+    const base = {
+      conceptId: p.concepts[0].id,
+      version: 0,
+      requestId: crypto.randomUUID(),
+    };
+    assert.equal(
+      (await act(request(path, { ...base, action: "start" }, cookie), context))
+        .status,
+      200,
+    );
+    const text = "가".repeat(15000);
+    const payload = {
+      ...base,
+      version: 1,
+      requestId: crypto.randomUUID(),
+      action: "draft",
+      text,
+    };
+    assert.ok(Buffer.byteLength(JSON.stringify(payload)) > 40000);
+    const saved = await act(request(path, payload, cookie), context);
+    assert.equal(saved.status, 200);
+    assert.equal(
+      (await saved.json()).project.studies[base.conceptId].draft,
+      text,
+    );
+    assert.equal(
+      (
+        await act(
+          request(
+            path,
+            {
+              ...payload,
+              version: 2,
+              requestId: crypto.randomUUID(),
+              text: text + "가",
+            },
+            cookie,
+          ),
+          context,
+        )
+      ).status,
+      400,
+    );
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await rm(folder, { recursive: true, force: true });
+  }
+});

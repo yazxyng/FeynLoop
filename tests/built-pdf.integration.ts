@@ -80,6 +80,15 @@ test(
       await delay(100);
     }
     assert.ok(ready, `테스트 서버 준비 실패: ${logs}`);
+    const pageResponse = await fetch(base + "/");
+    assert.equal(pageResponse.headers.get("x-frame-options"), "DENY");
+    assert.equal(pageResponse.headers.get("x-content-type-options"), "nosniff");
+    assert.ok(
+      pageResponse.headers
+        .get("content-security-policy")
+        ?.includes("frame-ancestors 'none'"),
+    );
+    assert.equal(pageResponse.headers.get("x-powered-by"), null);
     const form = new FormData();
     form.set("mode", "demo");
     form.set(
