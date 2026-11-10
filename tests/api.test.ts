@@ -292,7 +292,14 @@ test("API: 원문 비공개·사용자 격리·단계 검증·중복 방지·기
 });
 test("API: 기존 원문 제출형 평가 API는 차단", async () =>
   assert.equal((await oldAI()).status, 410));
-test("API: 다른 사이트 요청과 용량 초과 입력 차단", async () => {
+test("API: 다른 사이트 요청과 용량 초과 입력 차단", async (t) => {
+  // 용량 검증은 데모 API 접근을 명시적으로 허용한 조건에서 확인합니다.
+  const previous = process.env.ALLOW_DEMO;
+  process.env.ALLOW_DEMO = "true";
+  t.after(() => {
+    if (previous === undefined) delete process.env.ALLOW_DEMO;
+    else process.env.ALLOW_DEMO = previous;
+  });
   const response = await create(
     new Request("http://localhost/api/projects", {
       method: "POST",

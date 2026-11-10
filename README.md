@@ -217,6 +217,21 @@ AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이�
 
 `npm run build` 후 `npm run test:built-pdf`를 실행하면, 빌드된 Next.js 서버를 임시 포트로 띄워 실제 PDF 업로드와 텍스트 추출을 확인합니다. Webpack이 PDF 라이브러리 설치 경로를 숫자 모듈 ID로 바꾸는 회귀를 검사합니다. 테스트 전용 임시 저장소와 데모 모드를 사용하며 Gemini 호출·인증 메일 발송·Supabase 데이터 변경은 하지 않습니다.
 
+### GitHub Actions 자동 검사
+
+[CI 워크플로](.github/workflows/ci.yml)는 PR 생성·업데이트와 `main` 브랜치 push 시 실행됩니다. GitHub에서 `CI` → `Typecheck, tests and build` 결과를 확인할 수 있습니다.
+
+1. Node.js 24에서 `npm ci`로 잠금 파일에 맞춰 의존성을 설치합니다.
+2. 새 체크아웃의 Next.js 경로 타입을 생성하고 타입 검사를 실행합니다.
+3. 전체 테스트와 프로덕션 빌드를 실행합니다.
+4. 빌드된 임시 서버에서 PDF 업로드와 보안 헤더를 확인합니다.
+
+Gemini·Supabase의 실제 키나 GitHub Secrets 등록은 필요하지 않습니다. 테스트는 모의 응답·임시 저장소를 사용하고 실제 AI 호출·계정 생성·자동 배포는 하지 않습니다. 워크플로의 저장소 권한은 읽기 전용이고, 공식 액션은 전체 커밋 SHA로 고정했습니다. 같은 PR의 새 검사가 시작되면 이전 검사는 취소하며, 실행 시간은 15분으로 제한합니다.
+
+파일을 GitHub에 올리고 PR을 만들면 검사 결과가 표시됩니다. 기본 브랜치에 병합한 뒤에는 **Actions → CI → Run workflow**로 수동 실행도 가능합니다. 검사 실패 시 해당 실행의 실패한 단계를 열어 로그를 확인하세요. 검사가 실패하면 병합을 막는 설정은 자동으로 변경하지 않습니다. 필요하면 저장소 Rulesets 또는 Branch protection에서 이 검사를 필수 항목으로 지정할 수 있습니다.
+
+구성 기준: [GitHub Actions 보안 안내](https://docs.github.com/en/actions/reference/security/secure-use), [checkout](https://github.com/actions/checkout), [setup-node](https://github.com/actions/setup-node).
+
 ## 마이페이지
 
 상단 계정 버튼 또는 하단 **마이페이지** 메뉴에서 접근합니다. 프로필 카드, 최근 1년 학습 잔디, 계정 설정, 요금제 선택과 로그아웃을 제공합니다. 로그인 아이디는 읽기 전용이며 닉네임은 1~24자로 수정할 수 있습니다.
