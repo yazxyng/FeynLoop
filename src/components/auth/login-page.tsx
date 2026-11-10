@@ -7,7 +7,7 @@ import { useWorkspace } from "../workspace-provider";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { ready, userId } = useWorkspace();
+  const { ready, userId, setAuthVersion } = useWorkspace();
   // 가입 직후에는 로그인 상태여도 복구코드를 보관할 때까지 기다립니다.
   const started = useRef(false);
   useEffect(() => {
@@ -28,7 +28,10 @@ export default function LoginPage() {
             started.current = true;
           }}
           onClose={() => router.push("/")}
-          onSuccess={() => router.replace("/")}
+          onSuccess={() => {
+            setAuthVersion((version) => version + 1);
+            router.replace("/");
+          }}
         />
       )}
     </main>

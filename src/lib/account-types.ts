@@ -37,4 +37,8 @@ export const accountInputSchema = z.discriminatedUnion("action", [
     .strict(),
   z.object({ action: z.literal("logout") }).strict(),
 ]);
-export type AccountUser = { id: string; username: string };
+export const accountUserSchema = z.object({
+  id: z.string().uuid(),
+  username: usernameSchema,
+});
+export type AccountUser = z.infer<typeof accountUserSchema>;

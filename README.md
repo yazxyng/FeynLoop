@@ -204,6 +204,8 @@ AI는 확인된 이해, 명시적 개념 오류, 설명에서 빠진 요소(이�
 
 ### 로그인 화면 수정 위치
 
+배포 환경의 가입·로그아웃·재로그인·복구코드 검증 결과와 브라우저 알림 실패 재현은 [#14 검증 기록](docs/issues/14-auth-validation.md)에 정리했습니다. 현재 배포 주소는 `https://fenyloop.netlify.app`입니다. 수정본 배포 후에는 문제가 발생했던 브라우저에서도 다시 확인합니다.
+
 - `src/components/auth/login-copy.ts`: 화면별 제목·설명·버튼 문구
 - `src/components/auth/login-footer.tsx`: 재설정·회원가입·돌아가기 링크 순서와 배치
 - `src/components/auth/password-field.tsx`: 비밀번호 입력창과 보기 버튼
