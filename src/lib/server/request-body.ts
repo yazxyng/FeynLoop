@@ -1,3 +1,4 @@
+import { setDiagnosticStage } from "./diagnostics";
 import { ApiError } from "./errors";
 
 /** 본문 크기와 전체 수신 시간을 모두 제한합니다. Content-Length가 없어도 검사합니다. */
@@ -6,6 +7,7 @@ export async function readBody(
   maxBytes: number,
   timeoutMs = 15_000,
 ) {
+  setDiagnosticStage("read-body");
   const declared = req.headers.get("content-length");
   if (
     declared !== null &&

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LockKeyhole, Loader2, KeyRound, X } from "lucide-react";
+import { errorRequestId as diagnosticId } from "@/lib/request-error";
 import { accountInputSchema } from "@/lib/account-types";
 import InlineFeedback from "./inline-feedback";
 import { accountRequest, AccountRequestError } from "@/lib/account-client";
@@ -31,7 +32,12 @@ export default function PasswordLogin({
   const [issuedRecoveryCode, setIssuedRecoveryCode] = useState("");
   const [isPasswordVisible, setPasswordVisible] = useState(false);
   const [isBusy, setBusy] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorText] = useState("");
+  const [errorRequestId, setErrorRequestId] = useState<string>();
+  function setErrorMessage(message: string) {
+    setErrorText(message);
+    setErrorRequestId(undefined);
+  }
   const [retryAt, setRetryAt] = useState(0);
   const [now, setNow] = useState(Date.now);
   const requestInProgress = useRef(false);
@@ -107,6 +113,7 @@ export default function PasswordLogin({
       setErrorMessage(
         error instanceof Error ? error.message : "로그인하지 못했습니다.",
       );
+      setErrorRequestId(diagnosticId(error));
       if (error instanceof AccountRequestError && error.retryAfter > 0) {
         const until = Date.now() + error.retryAfter * 1000;
         setNow(Date.now());
@@ -286,7 +293,7 @@ export default function PasswordLogin({
                   copy.submitLabel
                 )}
               </Button>
-              <InlineFeedback error={errorMessage} />
+              <InlineFeedback error={errorMessage} requestId={errorRequestId} />
             </form>
             <LoginFooter
               step={step}

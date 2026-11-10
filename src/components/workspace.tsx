@@ -8,7 +8,7 @@ import ProcessingDialog from "./processing-dialog";
 import { draftRecoveryKey } from "@/lib/draft-recovery";
 import { documentTitle } from "@/lib/presentation";
 import StudyRoom from "./study-room";
-import InlineFeedback from "./inline-feedback";
+import InlineFeedback, { ErrorReference } from "./inline-feedback";
 import Welcome from "./welcome";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -56,6 +56,7 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
     operation,
     busyPresentation,
     error,
+    errorRequestId,
     notice,
     setError,
     setNotice,
@@ -68,6 +69,7 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
     screenLoading,
     routeUnavailable,
     routeError,
+    routeErrorRequestId,
     retryRoute,
     selectMode,
   } = useWorkspace();
@@ -163,6 +165,7 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
               <p>
                 {routeError || "자료가 없거나 현재 계정에서 접근할 수 없어요."}
               </p>
+              <ErrorReference requestId={routeErrorRequestId} />
               <div>
                 <button onClick={retryRoute}>다시 불러오기</button>
                 <button onClick={() => navigate("library")}>
@@ -291,6 +294,7 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
                   typing={activeOperation && busyPresentation === "reply"}
                   pendingMessage={pendingMessage}
                   errorMessage={error}
+                  errorRequestId={errorRequestId}
                   noticeMessage={notice}
                   onDismissFeedback={() => {
                     setError("");
@@ -380,6 +384,7 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
           {view !== "study" && (
             <InlineFeedback
               error={error}
+              requestId={errorRequestId}
               notice={notice}
               onDismiss={() => {
                 setError("");

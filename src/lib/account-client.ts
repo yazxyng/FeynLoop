@@ -1,12 +1,14 @@
+import { RequestError, responseRequestId } from "./request-error";
 import type { AccountUser } from "./account-types";
 
 export type AccountResult = { user: AccountUser | null; recoveryCode?: string };
-export class AccountRequestError extends Error {
+export class AccountRequestError extends RequestError {
   constructor(
     message: string,
     public retryAfter = 0,
+    requestId?: string,
   ) {
-    super(message);
+    super(message, requestId);
   }
 }
 export async function accountRequest(
@@ -42,9 +44,14 @@ export async function accountRequest(
       response.status === 429
         ? Number(response.headers.get("Retry-After")) || 60
         : 0,
+      responseRequestId(response, data),
     );
-  if (!data || !("user" in data))
-    throw new AccountRequestError("로그인 응답을 확인하지 못했습니다.");
+  if (!data || typeof data !== "object" || !("user" in data))
+    throw new AccountRequestError(
+      "로그인 응답을 확인하지 못했습니다.",
+      0,
+      responseRequestId(response, data),
+    );
   if (action && typeof window !== "undefined") {
     window.dispatchEvent(new Event("feynloop:account-changed"));
     if (typeof BroadcastChannel !== "undefined") {

@@ -3560,3 +3560,8 @@ body:has(.dark-mode) {
   .auth-page { padding: 24px 16px; }
   .login-page-content .password-login { padding: 28px 24px; }
 }
+
+/* 기존 오류 안내 안에서 필요한 경우에만 진단 번호를 펼쳐 봅니다. */
+.inline-feedback .error-reference { flex-basis: 100%; font-size: 11px; }
+.error-reference summary { cursor: pointer; width: fit-content; }
+.error-reference code { display: block; margin-top: 4px; overflow-wrap: anywhere; user-select: text; }

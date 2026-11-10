@@ -12,6 +12,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import { errorRequestId as diagnosticId } from "@/lib/request-error";
 import type { AccountProfile } from "@/lib/profile-types";
 import { profileRequest, importLegacyRecords } from "@/lib/profile-client";
 import { AccountRequestError } from "@/lib/account-client";
@@ -36,7 +37,16 @@ export default function MyPage({
 }: Props) {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setErrorText] = useState("");
+  const [errorRequestId, setErrorRequestId] = useState<string>();
+  function setError(message: string) {
+    setErrorText(message);
+    setErrorRequestId(undefined);
+  }
+  function reportError(error: unknown, fallback: string) {
+    setErrorText(error instanceof Error ? error.message : fallback);
+    setErrorRequestId(diagnosticId(error));
+  }
   const [notice, setNotice] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
@@ -74,12 +84,7 @@ export default function MyPage({
         }
       })
       .catch((error) => {
-        if (active)
-          setError(
-            error instanceof Error
-              ? error.message
-              : "계정 정보를 불러오지 못했어요.",
-          );
+        if (active) reportError(error, "계정 정보를 불러오지 못했어요.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -111,9 +116,7 @@ export default function MyPage({
     try {
       await task();
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "변경을 저장하지 못했어요.",
-      );
+      reportError(error, "변경을 저장하지 못했어요.");
       if (error instanceof AccountRequestError && error.retryAfter) {
         setRetryAt(Date.now() + error.retryAfter * 1000);
         setNow(Date.now());
@@ -128,6 +131,7 @@ export default function MyPage({
   const feedback = (
     <InlineFeedback
       error={error}
+      requestId={errorRequestId}
       notice={notice}
       onDismiss={() => {
         setError("");

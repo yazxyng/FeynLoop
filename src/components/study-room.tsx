@@ -20,6 +20,7 @@ type Props = {
   pendingMessage: string | null;
   statusMessage: string;
   errorMessage: string;
+  errorRequestId?: string;
   noticeMessage: string;
   onDismissFeedback: () => void;
   onDraft: (text: string) => void;
@@ -37,6 +38,7 @@ export default function StudyRoom({
   pendingMessage,
   statusMessage,
   errorMessage,
+  errorRequestId,
   noticeMessage,
   onDismissFeedback,
   onDraft,
@@ -252,6 +254,7 @@ export default function StudyRoom({
         </div>
         <InlineFeedback
           error={errorMessage}
+          requestId={errorRequestId}
           notice={noticeMessage}
           onDismiss={onDismissFeedback}
         />

@@ -1,3 +1,4 @@
+import { setDiagnosticStage } from "../diagnostics";
 import { database } from "../database";
 import { ApiError } from "../errors";
 import { secretHash } from "./crypto";
@@ -16,6 +17,7 @@ export async function limitAuthAttempt(
   action: string,
   username: string,
 ) {
+  setDiagnosticStage("request-limit");
   // 임의의 X-Forwarded-For를 믿지 않습니다. 신뢰할 수 있는 프록시에서만 별도 활성화합니다.
   const ip =
     process.env.NETLIFY === "true"
