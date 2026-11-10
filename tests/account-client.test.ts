@@ -48,3 +48,128 @@ test("HTML 장애 응답도 JSON 파싱 오류를 노출하지 않는다", async
     /로그인 요청을 처리하지 못했습니다/,
   );
 });
+
+test("서버 가입 성공 후 브라우저의 탭 알림이 막혀도 복구코드를 반환한다", async (t) => {
+  const browserDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "window",
+  );
+  const channelDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "BroadcastChannel",
+  );
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: new EventTarget(),
+  });
+  Object.defineProperty(globalThis, "BroadcastChannel", {
+    configurable: true,
+    value: class {
+      constructor() {
+        throw new DOMException("blocked", "SecurityError");
+      }
+    },
+  });
+  t.after(() => {
+    if (browserDescriptor)
+      Object.defineProperty(globalThis, "window", browserDescriptor);
+    else Reflect.deleteProperty(globalThis, "window");
+    if (channelDescriptor)
+      Object.defineProperty(globalThis, "BroadcastChannel", channelDescriptor);
+    else Reflect.deleteProperty(globalThis, "BroadcastChannel");
+  });
+  const result = {
+    user: { id: "9fcb696a-e16e-4fca-b50d-d82b0699a50a", username: "qa_user" },
+    recoveryCode: "FYN-" + Array(6).fill("ABCDEF12").join("-"),
+  };
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json(result, { status: 201 }),
+  );
+  assert.deepEqual(
+    await accountRequest("signup", {
+      username: "qa_user",
+      password: "test-password",
+    }),
+    result,
+  );
+});
+
+test("탭 알림 전송이 실패해도 로그인 성공을 유지하고 채널을 닫는다", async (t) => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const previousChannel = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "BroadcastChannel",
+  );
+  let closed = false;
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: new EventTarget(),
+  });
+  Object.defineProperty(globalThis, "BroadcastChannel", {
+    configurable: true,
+    value: class {
+      postMessage() {
+        throw new DOMException("blocked", "SecurityError");
+      }
+      close() {
+        closed = true;
+      }
+    },
+  });
+  t.after(() => {
+    if (previousWindow)
+      Object.defineProperty(globalThis, "window", previousWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+    if (previousChannel)
+      Object.defineProperty(globalThis, "BroadcastChannel", previousChannel);
+    else Reflect.deleteProperty(globalThis, "BroadcastChannel");
+  });
+  const result = {
+    user: { id: "9fcb696a-e16e-4fca-b50d-d82b0699a50a", username: "qa_user" },
+  };
+  t.mock.method(globalThis, "fetch", async () => Response.json(result));
+  assert.deepEqual(await accountRequest("login"), result);
+  assert.equal(closed, true);
+});
+
+test("응답 본문을 읽는 중 시간 초과도 가입 상태 확인 안내로 처리한다", async (t) => {
+  const requestId = "f9db3783-22db-43c8-98c6-8f8889210def";
+  const response = Response.json(
+    { user: null },
+    { headers: { "X-Request-ID": requestId } },
+  );
+  t.mock.method(response, "json", async () => {
+    throw new DOMException("timeout", "AbortError");
+  });
+  t.mock.method(globalThis, "fetch", async () => response);
+  await assert.rejects(
+    accountRequest("signup"),
+    (error) =>
+      error instanceof AccountRequestError &&
+      error.message.includes("같은 아이디로 로그인") &&
+      error.requestId === requestId,
+  );
+});
+
+test("불완전한 성공 응답은 로그인 완료나 복구코드 발급으로 처리하지 않는다", async (t) => {
+  let output: unknown = null;
+  t.mock.method(globalThis, "fetch", async () => Response.json(output));
+  for (const value of [
+    null,
+    true,
+    "ok",
+    { user: null },
+    { user: { id: "invalid", username: "qa_user" } },
+  ]) {
+    output = value;
+    await assert.rejects(accountRequest("login"), AccountRequestError);
+  }
+  output = {
+    user: { id: "9fcb696a-e16e-4fca-b50d-d82b0699a50a", username: "qa_user" },
+  };
+  for (const action of ["signup", "recover", "logout"])
+    await assert.rejects(accountRequest(action), AccountRequestError);
+  output = { user: null };
+  assert.deepEqual(await accountRequest(), output);
+  assert.deepEqual(await accountRequest("logout"), output);
+});

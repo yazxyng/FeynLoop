@@ -369,6 +369,7 @@ export default function Workspace({ route }: { route: WorkspaceRoute }) {
               onImported={() => setAuthVersion((version) => version + 1)}
               onLogout={async () => {
                 await accountRequest("logout");
+                setAuthVersion((version) => version + 1);
                 setNotice("로그아웃했습니다.");
               }}
             />
